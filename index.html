@@ -69,6 +69,12 @@
       gap: 6px;
     }
 
+    .crop-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
     .crop-btn {
       display: flex;
       align-items: center;
@@ -81,6 +87,39 @@
       font-size: 0.78rem;
       cursor: pointer;
       transition: all 0.15s;
+      flex: 1;
+    }
+
+    .retail-pct-wrap {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      font-size: 0.7rem;
+      color: #7a8a9a;
+      white-space: nowrap;
+    }
+
+    .retail-pct-input {
+      width: 36px;
+      padding: 3px 2px;
+      background: #0a1628;
+      color: #e0e0e0;
+      border: 1px solid #1a3a5c;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      text-align: center;
+      -moz-appearance: textfield;
+    }
+
+    .retail-pct-input::-webkit-inner-spin-button,
+    .retail-pct-input::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    .retail-pct-label {
+      font-size: 0.6rem;
+      color: #556;
     }
 
     .crop-btn:hover { background: #1e2a4a; }
@@ -381,60 +420,58 @@
 
   <script>
     // ── Crop Definitions ──────────────────────────────────────────
-    // Yield (lbs/acre/year) and pricing for Woodstock CT, Zone 6a
-    // Prices: 2/3 wholesale + 1/3 retail blend (except grapes → $25/bottle wine)
-    // Grapes: 6 tons/ac, 720 bottles/ton, $25/bottle
+    // Revenue per acre (wholesale & retail) from planning data
     // yieldByYear: [yr1, yr2, yr3, yr4, yr5, maturity] as fraction of full yield
     const CROPS = [
-      { id: 'grapes',       name: 'Grapes (Vineyard)',  color: '#7b2d8e', icon: '🍇', yieldPerAcre: 12000, bottlesPerTon: 720, bottlePrice: 25,
+      { id: 'grapes',       name: 'Grapes (Vineyard)',  color: '#7b2d8e', icon: '🍇', yieldPerAcre: 12000, wholesaleRevPerAcre: 9000,  retailRevPerAcre: 14000,
         yieldByYear: [0, 0.38, 0.75, 1.0, 1.0, 1.0] },
-      { id: 'hops',         name: 'Hops',               color: '#2d8e4e', icon: '🌿', yieldPerAcre: 300,   wholesalePerLb: 8,     retailPerLb: 15,
+      { id: 'hops',         name: 'Hops',               color: '#2d8e4e', icon: '🌿', yieldPerAcre: 300,   wholesaleRevPerAcre: 3600,  retailRevPerAcre: 5400,
         yieldByYear: [0, 0.30, 0.80, 1.0, 1.0, 1.0] },
-      { id: 'vegetables',   name: 'Vegetables',         color: '#e8a838', icon: '🥕', yieldPerAcre: 15000, wholesalePerLb: 1.00,  retailPerLb: 3.50,
+      { id: 'vegetables',   name: 'Vegetables',         color: '#e8a838', icon: '🥕', yieldPerAcre: 15000, wholesaleRevPerAcre: 15000, retailRevPerAcre: 30000,
         yieldByYear: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0] },
-      { id: 'orchard',      name: 'Orchard / Fruit',    color: '#d94f4f', icon: '🍎', yieldPerAcre: 20000, wholesalePerLb: 0.40,  retailPerLb: 2.00,
+      { id: 'orchard',      name: 'Orchard / Fruit',    color: '#d94f4f', icon: '🍎', yieldPerAcre: 20000, wholesaleRevPerAcre: 7000,  retailRevPerAcre: 14000,
         yieldByYear: [0, 0.13, 0.53, 0.80, 1.0, 1.0] },
-      { id: 'herbs',        name: 'Herbs',              color: '#3dbf7a', icon: '🌱', yieldPerAcre: 5000,  wholesalePerLb: 3.00,  retailPerLb: 10.00,
+      { id: 'herbs',        name: 'Herbs',              color: '#3dbf7a', icon: '🌱', yieldPerAcre: 5000,  wholesaleRevPerAcre: 11500, retailRevPerAcre: 24000,
         yieldByYear: [0.58, 1.0, 1.0, 1.0, 1.0, 1.0] },
-      { id: 'blueberries',  name: 'Blueberries',         color: '#c94080', icon: '🫐', yieldPerAcre: 6000,  wholesalePerLb: 2.50,  retailPerLb: 7.00,
+      { id: 'blueberries',  name: 'Blueberries',        color: '#c94080', icon: '🫐', yieldPerAcre: 6000,  wholesaleRevPerAcre: 9000,  retailRevPerAcre: 40000,
         yieldByYear: [0.60, 0.90, 1.0, 1.0, 1.0, 1.0] },
-      { id: 'elderberries', name: 'Elderberries',       color: '#4B0082', icon: '🍇', yieldPerAcre: 4000,  wholesalePerLb: 3.00,  retailPerLb: 8.00,
+      { id: 'elderberries', name: 'Elderberries',       color: '#4B0082', icon: '🍇', yieldPerAcre: 4000,  wholesaleRevPerAcre: 9000,  retailRevPerAcre: 40000,
         yieldByYear: [0, 0.15, 0.50, 0.80, 1.0, 1.0] },
-      { id: 'lavender',     name: 'Lavender',           color: '#9370DB', icon: '💜', yieldPerAcre: 1500,  wholesalePerLb: 8.00,  retailPerLb: 18.00,
+      { id: 'lavender',     name: 'Lavender',           color: '#9370DB', icon: '💜', yieldPerAcre: 1500,  wholesaleRevPerAcre: 17000, retailRevPerAcre: 35000,
         yieldByYear: [0.33, 0.67, 1.0, 1.0, 1.0, 1.0] },
-      { id: 'sunflowers',   name: 'Sunflowers',         color: '#FFD700', icon: '🌻', yieldPerAcre: 1200,  wholesalePerLb: 0.25,  retailPerLb: 0.75,
+      { id: 'sunflowers',   name: 'Sunflowers',         color: '#FFD700', icon: '🌻', yieldPerAcre: 1200,  wholesaleRevPerAcre: 500,   retailRevPerAcre: 4000,
         yieldByYear: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0] },
-      { id: 'nut_trees',    name: 'Nut Trees',          color: '#8B6914', icon: '🌰', yieldPerAcre: 2000,  wholesalePerLb: 2.00,  retailPerLb: 6.00,
+      { id: 'nut_trees',    name: 'Nut Trees',          color: '#8B6914', icon: '🌰', yieldPerAcre: 2000,  wholesaleRevPerAcre: 3500,  retailRevPerAcre: 6500,
         yieldByYear: [0, 0.07, 0.23, 0.50, 0.77, 1.0] },
-      { id: 'saffron',      name: 'Saffron',            color: '#FF6347', icon: '🌸', yieldPerAcre: 4,     wholesalePerLb: 1200,  retailPerLb: 2500,
+      { id: 'saffron',      name: 'Saffron',            color: '#FF6347', icon: '🌸', yieldPerAcre: 4,     wholesaleRevPerAcre: 45000, retailRevPerAcre: 70000,
         yieldByYear: [0.52, 0.78, 1.0, 1.0, 1.0, 1.0] },
-      { id: 'christmas_trees', name: 'Christmas Trees',  color: '#228B22', icon: '🎄', yieldPerAcre: 800,   wholesalePerLb: 0,     retailPerLb: 0, treesPerAcre: 1200, treePrice: 65,
+      { id: 'christmas_trees', name: 'Christmas Trees',  color: '#228B22', icon: '🎄', yieldPerAcre: 0, wholesaleRevPerAcre: 2750, retailRevPerAcre: 3500,
         yieldByYear: [0, 0, 0, 0, 0, 1.0] },
-      { id: 'buildings',    name: 'Buildings',           color: '#666666', icon: '🏢', yieldPerAcre: 0,     wholesalePerLb: 0,     retailPerLb: 0,
+      { id: 'buildings',    name: 'Buildings',           color: '#666666', icon: '🏢', yieldPerAcre: 0,     wholesaleRevPerAcre: 0,     retailRevPerAcre: 0,
         yieldByYear: [0, 0, 0, 0, 0, 0] },
-      { id: 'driveway',     name: 'Driveway',            color: '#999999', icon: '🛤️', yieldPerAcre: 0,     wholesalePerLb: 0,     retailPerLb: 0,
+      { id: 'driveway',     name: 'Driveway',            color: '#999999', icon: '🛤️', yieldPerAcre: 0,     wholesaleRevPerAcre: 0,     retailRevPerAcre: 0,
         yieldByYear: [0, 0, 0, 0, 0, 0] },
     ];
 
     let selectedYear = 5; // index into yieldByYear (0=yr1, ..., 5=maturity)
 
-    // Revenue calc: grapes use bottle pricing, everything else uses 2/3 wholesale + 1/3 retail
-    // Applies year multiplier to scale yield. yearIdx overrides selectedYear (for mature zones).
+    // Retail % per crop (user-adjustable, default 33%)
+    const retailPct = {};
+    CROPS.forEach(c => { retailPct[c.id] = 33; });
+
+    function setRetailPct(cropId, pct) {
+      retailPct[cropId] = Math.max(0, Math.min(100, parseInt(pct) || 0));
+      renderSummary();
+    }
+
+    // Revenue calc: blends wholesale and retail rev/acre by retail %
+    // Applies year multiplier. yearIdx overrides selectedYear (for mature zones).
     function calcCropRevenue(crop, acres, yearIdx) {
       const yi = yearIdx !== undefined ? yearIdx : selectedYear;
       const ym = crop.yieldByYear ? crop.yieldByYear[yi] : 1;
-      if (crop.bottlePrice) {
-        const tons = (acres * crop.yieldPerAcre * ym) / 2000;
-        const bottles = tons * crop.bottlesPerTon;
-        return { revenue: bottles * crop.bottlePrice, bottles: Math.round(bottles) };
-      }
-      if (crop.treePrice) {
-        const treesHarvested = Math.round(acres * crop.treesPerAcre / 6 * ym);
-        return { revenue: treesHarvested * crop.treePrice, trees: treesHarvested };
-      }
-      const lbs = acres * crop.yieldPerAcre * ym;
-      const blendedPrice = (crop.wholesalePerLb * 2/3) + (crop.retailPerLb * 1/3);
-      return { revenue: lbs * blendedPrice };
+      const rp = retailPct[crop.id] / 100;
+      const revPerAcre = crop.wholesaleRevPerAcre * (1 - rp) + crop.retailRevPerAcre * rp;
+      return { revenue: acres * revPerAcre * ym };
     }
 
     let selectedCrop = CROPS[0];
@@ -444,6 +481,8 @@
     // ── Build Crop Palette ────────────────────────────────────────
     const paletteEl = document.getElementById('crop-palette');
     CROPS.forEach((crop, i) => {
+      const row = document.createElement('div');
+      row.className = 'crop-row';
       const btn = document.createElement('button');
       btn.className = 'crop-btn' + (i === 0 ? ' active' : '');
       btn.innerHTML = `<span class="crop-swatch" style="background:${crop.color}"></span>${crop.icon} ${crop.name}`;
@@ -452,7 +491,14 @@
         btn.classList.add('active');
         selectedCrop = crop;
       };
-      paletteEl.appendChild(btn);
+      row.appendChild(btn);
+      if (crop.wholesaleRevPerAcre > 0 || crop.retailRevPerAcre > 0) {
+        const pctWrap = document.createElement('div');
+        pctWrap.className = 'retail-pct-wrap';
+        pctWrap.innerHTML = `<input type="number" min="0" max="100" value="33" class="retail-pct-input" onchange="setRetailPct('${crop.id}', this.value)" title="% of sales from retail">%<span class="retail-pct-label">retail</span>`;
+        row.appendChild(pctWrap);
+      }
+      paletteEl.appendChild(row);
     });
 
     // ── Map Setup ─────────────────────────────────────────────────
@@ -874,12 +920,10 @@
         const lbs = acres * crop.yieldPerAcre * ym;
         const result = calcCropRevenue(crop, acres, z.mature ? 5 : undefined);
         totalAcres += acres;
-        if (!grouped[z.cropId]) grouped[z.cropId] = { acres: 0, lbs: 0, revenue: 0, bottles: 0, trees: 0 };
+        if (!grouped[z.cropId]) grouped[z.cropId] = { acres: 0, lbs: 0, revenue: 0 };
         grouped[z.cropId].acres += acres;
         grouped[z.cropId].lbs += lbs;
         grouped[z.cropId].revenue += result.revenue;
-        if (result.bottles) grouped[z.cropId].bottles += result.bottles;
-        if (result.trees) grouped[z.cropId].trees += result.trees;
         totalRevenue += result.revenue;
         totalLbs += lbs;
       });
@@ -888,12 +932,8 @@
 
       const rows = Object.entries(grouped).map(([cropId, data]) => {
         const crop = getCrop(cropId);
-        const hasYield = data.lbs > 0 || data.bottles > 0 || data.trees > 0;
-        const volumeInfo = data.bottles
-          ? `${formatNum(data.lbs)} lbs / ${formatNum(data.bottles)} bottles`
-          : data.trees
-          ? `${formatNum(data.trees)} trees/yr`
-          : `${formatNum(data.lbs)} lbs/yr`;
+        const hasYield = data.revenue > 0;
+        const volumeInfo = `${formatNum(data.lbs)} lbs/yr`;
         return `
           <div class="summary-crop-block">
             <div class="summary-row">

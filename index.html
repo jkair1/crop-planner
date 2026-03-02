@@ -353,6 +353,8 @@
       { id: 'nut_trees',    name: 'Nut Trees',          color: '#8B6914', icon: '🌰' },
       { id: 'saffron',      name: 'Saffron',            color: '#FF6347', icon: '🌸' },
       { id: 'cover_crop',   name: 'Cover Crop',         color: '#556B2F', icon: '🍀' },
+      { id: 'buildings',    name: 'Buildings',           color: '#666666', icon: '🏢' },
+      { id: 'driveway',     name: 'Driveway',            color: '#999999', icon: '🛤️' },
     ];
 
     let selectedCrop = CROPS[0];
@@ -567,11 +569,13 @@
       showToast(`Added ${selectedCrop.name} zone (${calcAcres(layer).toFixed(2)} acres)`);
     });
 
-    // Zone deleted
+    // Zone deleted (via Draw toolbar)
     map.on(L.Draw.Event.DELETED, function (e) {
       e.layers.eachLayer(function (layer) {
+        const z = zones.find(z => z.layer === layer);
+        const label = (z && z._label) || layer._label;
+        if (label) map.removeLayer(label);
         zones = zones.filter(z => z.layer !== layer);
-        if (layer._label) map.removeLayer(layer._label);
       });
       renderZoneList();
       renderSummary();
@@ -635,6 +639,7 @@
       });
       label.addTo(map);
       zone.layer._label = label;
+      zone._label = label; // store on zone too for reliable cleanup
     }
 
     function showToast(msg) {
@@ -688,7 +693,8 @@
       if (!z) return;
       z.name = name.trim() || z.name;
       updateLayerPopup(z);
-      if (z.layer._label) map.removeLayer(z.layer._label);
+      const label = z._label || z.layer._label;
+      if (label) map.removeLayer(label);
       addZoneLabel(z);
       saveToStorage();
     }
@@ -700,7 +706,8 @@
       const crop = getCrop(cropId);
       z.layer.setStyle({ color: crop.color, fillColor: crop.color });
       updateLayerPopup(z);
-      if (z.layer._label) map.removeLayer(z.layer._label);
+      const label = z._label || z.layer._label;
+      if (label) map.removeLayer(label);
       addZoneLabel(z);
       renderZoneList();
       renderSummary();
@@ -717,7 +724,9 @@
       const z = zones.find(z => z.id === id);
       if (!z) return;
       drawnItems.removeLayer(z.layer);
-      if (z.layer._label) map.removeLayer(z.layer._label);
+      // Remove label from both possible references
+      const label = z._label || z.layer._label;
+      if (label) map.removeLayer(label);
       zones = zones.filter(z => z.id !== id);
       renderZoneList();
       renderSummary();
@@ -947,7 +956,8 @@
     function clearAllZones() {
       zones.forEach(z => {
         drawnItems.removeLayer(z.layer);
-        if (z.layer._label) map.removeLayer(z.layer._label);
+        const label = z._label || z.layer._label;
+        if (label) map.removeLayer(label);
       });
       zones = [];
       zoneIdCounter = 0;

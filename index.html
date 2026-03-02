@@ -854,70 +854,75 @@
     // Based on research of: Woodstock CT Zone 6a climate, Paxton loam
     // (acidic glacial till, pH ~5.0-5.8), ~135-day growing season,
     // drumlin terrain, proximity to Hartford/Providence/Boston markets,
-    // and existing Taylor Brooke Winery/Brewery infrastructure.
+    // existing Taylor Brooke Winery/Brewery infrastructure.
+    // Zones fitted to official CT parcel boundaries, avoiding structures.
+    //
+    // 848 lot: lat 41.9445-41.9476, lng -72.0110 to -72.0065 (winery + residence)
+    //   Buildings/parking estimated ~41.9456-41.9464, -72.0093 to -72.0078
+    // 818 lot: lat 41.9413-41.9454, lng -72.0086 to -72.0037 (brewery)
+    //   Buildings/parking estimated ~41.9418-41.9428, -72.0058 to -72.0044
     const SUGGESTED_ZONES = [
-      // === SOUTHERN STRIP (Route 171 frontage, south-facing) ===
-      { name: 'Sunflower Field',
-        cropId: 'sunflowers',
-        latlngs: [[41.9478,-72.0145],[41.9478,-72.0130],[41.9487,-72.0130],[41.9487,-72.0145]],
-        rationale: 'Road-facing agritourism draw. CT sunflower festivals (like Buttonwood Farm) attract 50K+ visitors. Drives traffic to winery/brewery. ~$3K/ac direct + $15K+ agritourism spillover.',
-        estRevenue: '$10K-$20K/yr'
-      },
-      { name: 'Hop Yard',
-        cropId: 'hops',
-        latlngs: [[41.9478,-72.0130],[41.9478,-72.0115],[41.9487,-72.0115],[41.9487,-72.0130]],
-        rationale: 'Adjacent to brewery (818 lot). Direct supply chain for on-site craft beer. CT craft beer market growing. 1,100-1,500 lbs/ac dried at $5-15/lb. Trellis system needed ($12-15K/ac startup).',
-        estRevenue: '$12K-$25K/ac/yr'
-      },
-      { name: 'Culinary Herb Garden',
-        cropId: 'herbs',
-        latlngs: [[41.9478,-72.0115],[41.9478,-72.0103],[41.9487,-72.0103],[41.9487,-72.0115]],
-        rationale: 'Central location near buildings for daily harvest. Basil, thyme, rosemary, oregano, chamomile. Restaurant supply to Hartford/Providence (68-79% margins). Multiple harvests per season.',
-        estRevenue: '$15K-$30K/ac/yr'
-      },
-      { name: 'Saffron Beds',
-        cropId: 'saffron',
-        latlngs: [[41.9478,-72.0103],[41.9478,-72.0092],[41.9487,-72.0092],[41.9487,-72.0103]],
-        rationale: 'HIGHEST VALUE CROP. Saffron thrives in New England (UVM research). Acidic soil w/ 5%+ organic matter is ideal. Oct-Nov harvest when other field work is done. $19/gram retail. Labor-intensive but small acreage maximizes ROI.',
-        estRevenue: '$20K-$60K/ac/yr'
-      },
+      // ═══ 848 LOT (Winery/Residence, 16.7 ac) ═══
       { name: 'Existing Vineyard',
         cropId: 'grapes',
-        latlngs: [[41.9478,-72.0092],[41.9478,-72.0068],[41.9487,-72.0068],[41.9487,-72.0092]],
-        rationale: 'Established ~5 acres. South-facing, well-drained slope. Taylor Brooke already produces award-winning wines. Value-added wine sales at $15-30/bottle dramatically increase per-acre returns vs raw grape sales.',
+        latlngs: [[41.9448,-72.0086],[41.9448,-72.0068],[41.9456,-72.0068],[41.9464,-72.0076],[41.9460,-72.0090]],
+        rationale: 'Established ~5 acres on south-facing slope of 848 lot. Taylor Brooke produces award-winning wines. Value-added wine at $15-30/bottle dramatically increases per-acre returns vs raw grape sales.',
         estRevenue: '$15K-$50K/ac/yr (wine)'
-      },
-      // === MIDDLE STRIP (main production area) ===
-      { name: 'Chestnut Grove',
-        cropId: 'nut_trees',
-        latlngs: [[41.9487,-72.0145],[41.9487,-72.0110],[41.9496,-72.0110],[41.9496,-72.0145]],
-        rationale: 'Long-term investment (15yr to peak). Chestnuts thrive in acidic soil, 50%+ more precipitation than European chestnut regions. 3,500-4,000 lbs/ac at maturity, $2-5.50/lb. Low maintenance once established. Erosion control on slopes.',
-        estRevenue: '$7K-$15K/ac/yr (yr 12+)'
-      },
-      { name: 'Apple & Pear Orchard',
-        cropId: 'orchard',
-        latlngs: [[41.9487,-72.0110],[41.9487,-72.0092],[41.9496,-72.0092],[41.9496,-72.0110]],
-        rationale: 'Apples are CT\'s top fruit crop. U-pick agritourism synergy. Can produce hard cider for winery/brewery taproom (value-added). Honeycrisp, Cortland, Macoun varieties thrive in Zone 6a.',
-        estRevenue: '$5K-$15K/ac/yr'
-      },
-      { name: 'Vineyard Expansion',
-        cropId: 'grapes',
-        latlngs: [[41.9487,-72.0092],[41.9487,-72.0068],[41.9496,-72.0068],[41.9496,-72.0092]],
-        rationale: 'Contiguous with existing vineyard, same south-facing aspect and soil. Leverages existing winery infrastructure and brand. CT wine industry growing 3.9%/yr. Cold-hardy hybrids (Marquette, La Crescent) for expanded variety.',
-        estRevenue: '$15K-$50K/ac/yr (wine)'
-      },
-      // === NORTHERN STRIP (back of property) ===
-      { name: 'Blueberry Patch',
-        cropId: 'berries',
-        latlngs: [[41.9496,-72.0145],[41.9496,-72.0110],[41.9503,-72.0110],[41.9503,-72.0145]],
-        rationale: 'PERFECT for acidic Paxton loam (pH 4.5-5.5 ideal). 8,000-9,000 lbs/ac at maturity. PYO model reduces labor costs. Lyman Orchards harvests 25,000 lbs/yr in CT. Highbush varieties (Bluecrop, Jersey) proven in Zone 6a.',
-        estRevenue: '$8K-$25K/ac/yr'
       },
       { name: 'Lavender Field',
         cropId: 'lavender',
-        latlngs: [[41.9496,-72.0110],[41.9496,-72.0068],[41.9503,-72.0068],[41.9503,-72.0110]],
-        rationale: 'Well-drained upper slopes ideal. Agritourism photo destination (complements sunflowers). Essential oils, dried bouquets, sachets. Pairs beautifully with winery tasting room retail. Peak harvest in 5 years. Angustifolia varieties winter-hardy to Zone 5.',
+        latlngs: [[41.9465,-72.0110],[41.9465,-72.0096],[41.9476,-72.0096],[41.9476,-72.0110]],
+        rationale: 'NW corner of 848 lot, upper slopes with good drainage. Agritourism photo destination for winery visitors. Essential oils, dried bouquets, sachets sold in tasting room. Angustifolia varieties hardy to Zone 5. Peak harvest in 5 years.',
         estRevenue: '$10K-$30K/ac/yr'
+      },
+      { name: 'Saffron Beds',
+        cropId: 'saffron',
+        latlngs: [[41.9446,-72.0101],[41.9446,-72.0093],[41.9454,-72.0093],[41.9454,-72.0101]],
+        rationale: 'HIGHEST VALUE CROP. SW corner of 848 lot, small accessible plot. Saffron thrives in New England (UVM research). Oct-Nov harvest when other field work is done. $19/gram retail. Kept small (~1 ac) due to labor-intensive hand harvest.',
+        estRevenue: '$20K-$60K/ac/yr'
+      },
+      { name: 'Culinary Herb Garden',
+        cropId: 'herbs',
+        latlngs: [[41.9465,-72.0096],[41.9465,-72.0082],[41.9472,-72.0082],[41.9472,-72.0096]],
+        rationale: 'North-central 848 lot, near winery for daily harvest and tasting room retail. Basil, thyme, rosemary, oregano, chamomile. Restaurant supply to Hartford/Providence (68-79% margins). Multiple harvests per season.',
+        estRevenue: '$15K-$30K/ac/yr'
+      },
+      // ═══ 818 LOT (Brewery, 26.3 ac) ═══
+      { name: 'Vineyard Expansion',
+        cropId: 'grapes',
+        latlngs: [[41.9442,-72.0074],[41.9442,-72.0057],[41.9454,-72.0057],[41.9454,-72.0074]],
+        rationale: 'North end of 818 lot, adjacent to 848 vineyard across lot line. Same south-facing aspect and soil. Leverages existing winery infrastructure and brand. CT wine industry growing 3.9%/yr. Cold-hardy hybrids (Marquette, La Crescent).',
+        estRevenue: '$15K-$50K/ac/yr (wine)'
+      },
+      { name: 'Chestnut Grove',
+        cropId: 'nut_trees',
+        latlngs: [[41.9435,-72.0084],[41.9435,-72.0074],[41.9449,-72.0074],[41.9449,-72.0084]],
+        rationale: 'NW portion of 818 lot. Long-term investment (15yr to peak). Chestnuts thrive in acidic soil. 3,500-4,000 lbs/ac at maturity, $2-5.50/lb. Low maintenance once established. Erosion control on slopes. 50%+ more precipitation than European chestnut regions.',
+        estRevenue: '$7K-$15K/ac/yr (yr 12+)'
+      },
+      { name: 'Blueberry Patch',
+        cropId: 'berries',
+        latlngs: [[41.9428,-72.0074],[41.9428,-72.0052],[41.9440,-72.0052],[41.9440,-72.0074]],
+        rationale: 'Central 818 lot. PERFECT for acidic Paxton loam (pH 4.5-5.5 ideal for blueberries). 8,000-9,000 lbs/ac at maturity. PYO model reduces labor and drives agritourism traffic. Highbush varieties (Bluecrop, Jersey) proven in Zone 6a.',
+        estRevenue: '$8K-$25K/ac/yr'
+      },
+      { name: 'Apple & Pear Orchard',
+        cropId: 'orchard',
+        latlngs: [[41.9432,-72.0052],[41.9432,-72.0040],[41.9444,-72.0040],[41.9444,-72.0052]],
+        rationale: 'East-central 818 lot. Apples are CT\'s top fruit crop. U-pick agritourism synergy with winery/brewery visitors. Hard cider production for taproom (value-added). Honeycrisp, Cortland, Macoun thrive in Zone 6a.',
+        estRevenue: '$5K-$15K/ac/yr'
+      },
+      { name: 'Hop Yard',
+        cropId: 'hops',
+        latlngs: [[41.9416,-72.0072],[41.9416,-72.0058],[41.9428,-72.0058],[41.9428,-72.0072]],
+        rationale: 'SW portion of 818 lot, near brewery building. Direct supply chain for on-site craft beer production. CT has 120+ craft breweries. 1,100-1,500 lbs/ac dried at $5-15/lb. Trellis system needed ($12-15K/ac startup).',
+        estRevenue: '$4K-$9K/ac/yr'
+      },
+      { name: 'Sunflower Field',
+        cropId: 'sunflowers',
+        latlngs: [[41.9413,-72.0048],[41.9413,-72.0037],[41.9422,-72.0037],[41.9422,-72.0048]],
+        rationale: 'SE corner of 818 lot, road-facing along Route 171 for maximum visibility. Agritourism draw — CT sunflower festivals attract 50K+ visitors. Drives traffic to winery/brewery. Low startup ($500-1,500/ac). Annual crop, replanted each year.',
+        estRevenue: '$5K-$20K/yr (agritourism)'
       },
     ];
 
@@ -983,8 +988,8 @@
         <h3>AI Crop Plan Rationale</h3>
         <div class="rationale-item" style="border-left-color:#3dbf7a;margin-bottom:12px;">
           <b>Site Analysis:</b> Woodstock CT, Zone 6a. Paxton loam (acidic glacial till, pH ~5.0-5.8).
-          ~135 frost-free days (May-Oct). Rolling drumlin terrain with south-facing slopes.
-          Within 1.5hr of Hartford, Providence, Boston markets. Existing winery + brewery infrastructure.
+          ~135 frost-free days (May-Oct). Rolling drumlin terrain. Zones fitted to official CT parcel
+          boundaries, avoiding buildings, parking, and driveways. 848 lot (winery) = north, 818 lot (brewery) = south.
         </div>
         ${SUGGESTED_ZONES.map(sz => {
           const crop = getCrop(sz.cropId);
@@ -994,8 +999,8 @@
           </div>`;
         }).join('')}
         <div class="rationale-item" style="border-left-color:#e94560;margin-top:12px;">
-          <b>Estimated Total Revenue at Maturity:</b> <span class="revenue">$500K-$900K/yr</span><br>
-          Timeline: Herbs/saffron producing Year 1-2. Hops/blueberries Year 3-5. Orchard Year 4-7. Chestnuts Year 12-15 for peak. Diversified revenue stream reduces risk.
+          <b>Estimated Total Revenue at Maturity:</b> <span class="revenue">$400K-$800K/yr</span><br>
+          Timeline: Herbs/saffron producing Year 1-2. Hops/blueberries Year 3-5. Orchard Year 4-7. Chestnuts Year 12-15 for peak. Diversified revenue stream reduces risk. Zones avoid structures — adjust polygons if needed.
         </div>
       `;
 

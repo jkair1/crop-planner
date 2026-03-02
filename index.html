@@ -419,9 +419,10 @@
     let selectedYear = 5; // index into yieldByYear (0=yr1, ..., 5=maturity)
 
     // Revenue calc: grapes use bottle pricing, everything else uses 2/3 wholesale + 1/3 retail
-    // Applies year multiplier to scale yield
-    function calcCropRevenue(crop, acres) {
-      const ym = crop.yieldByYear ? crop.yieldByYear[selectedYear] : 1;
+    // Applies year multiplier to scale yield. yearIdx overrides selectedYear (for mature zones).
+    function calcCropRevenue(crop, acres, yearIdx) {
+      const yi = yearIdx !== undefined ? yearIdx : selectedYear;
+      const ym = crop.yieldByYear ? crop.yieldByYear[yi] : 1;
       if (crop.bottlePrice) {
         const tons = (acres * crop.yieldPerAcre * ym) / 2000;
         const bottles = tons * crop.bottlesPerTon;
@@ -859,7 +860,7 @@
         return;
       }
 
-      // Group by crop
+      // Group by crop, calculating per-zone so mature overrides work
       const grouped = {};
       let totalAcres = 0;
       let totalRevenue = 0;
@@ -867,26 +868,32 @@
 
       zones.forEach(z => {
         const acres = calcAcres(z.layer);
+        const crop = getCrop(z.cropId);
+        const yi = z.mature ? 5 : selectedYear;
+        const ym = crop.yieldByYear ? crop.yieldByYear[yi] : 1;
+        const lbs = acres * crop.yieldPerAcre * ym;
+        const result = calcCropRevenue(crop, acres, z.mature ? 5 : undefined);
         totalAcres += acres;
-        if (!grouped[z.cropId]) grouped[z.cropId] = { acres: 0 };
+        if (!grouped[z.cropId]) grouped[z.cropId] = { acres: 0, lbs: 0, revenue: 0, bottles: 0, trees: 0 };
         grouped[z.cropId].acres += acres;
+        grouped[z.cropId].lbs += lbs;
+        grouped[z.cropId].revenue += result.revenue;
+        if (result.bottles) grouped[z.cropId].bottles += result.bottles;
+        if (result.trees) grouped[z.cropId].trees += result.trees;
+        totalRevenue += result.revenue;
+        totalLbs += lbs;
       });
 
       const yearLabels = ['Year 1','Year 2','Year 3','Year 4','Year 5','Maturity'];
 
       const rows = Object.entries(grouped).map(([cropId, data]) => {
         const crop = getCrop(cropId);
-        const ym = crop.yieldByYear ? crop.yieldByYear[selectedYear] : 1;
-        const lbs = data.acres * crop.yieldPerAcre * ym;
-        const result = calcCropRevenue(crop, data.acres);
-        totalRevenue += result.revenue;
-        totalLbs += lbs;
-        const hasYield = crop.yieldPerAcre > 0 && ym > 0;
-        const volumeInfo = result.bottles
-          ? `${formatNum(lbs)} lbs / ${formatNum(result.bottles)} bottles`
-          : result.trees
-          ? `${formatNum(result.trees)} trees/yr`
-          : `${formatNum(lbs)} lbs/yr`;
+        const hasYield = data.lbs > 0 || data.bottles > 0 || data.trees > 0;
+        const volumeInfo = data.bottles
+          ? `${formatNum(data.lbs)} lbs / ${formatNum(data.bottles)} bottles`
+          : data.trees
+          ? `${formatNum(data.trees)} trees/yr`
+          : `${formatNum(data.lbs)} lbs/yr`;
         return `
           <div class="summary-crop-block">
             <div class="summary-row">
@@ -899,7 +906,7 @@
             ${hasYield ? `
             <div class="summary-detail">
               <span>${volumeInfo}</span>
-              <span class="summary-revenue">$${formatNum(result.revenue)}/yr</span>
+              <span class="summary-revenue">$${formatNum(data.revenue)}/yr</span>
             </div>` : ''}
           </div>`;
       }).join('');
@@ -976,6 +983,7 @@
         name: z.name,
         latlngs: z.layer.getLatLngs()[0].map(ll => [ll.lat, ll.lng]),
         labelPos: z._labelPos || null,
+        mature: z.mature || false,
       }));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
@@ -1002,6 +1010,7 @@
             layer: layer,
             name: '',
             _labelPos: d.labelPos || null,
+            mature: d.mature || false,
           };
           zones.push(zone);
           if (d.id >= zoneIdCounter) zoneIdCounter = d.id;
@@ -1015,11 +1024,11 @@
       }
     }
 
-    // One-time clear for v5 (load user's actual layout)
-    if (!localStorage.getItem('cropPlannerV5')) {
+    // One-time clear for v6 (mature grape zones)
+    if (!localStorage.getItem('cropPlannerV6')) {
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem('cropPlannerSuggestedSeen');
-      localStorage.setItem('cropPlannerV5', 'true');
+      localStorage.setItem('cropPlannerV6', 'true');
     }
 
     // Load saved zones on startup
@@ -1208,8 +1217,8 @@
 
     // ── Default Layout (exported from local planning session) ──
     const DEFAULT_ZONES = [
-      { cropId: 'grapes', latlngs: [[41.94704703707862,-72.01093375682832],[41.946601922792325,-72.01052069664003],[41.946629867278425,-72.00966238975526],[41.946829470394235,-72.00976699590684],[41.94730053126975,-72.01025247573854]] },
-      { cropId: 'grapes', latlngs: [[41.94644373931619,-72.01064944267274],[41.94639184225219,-72.01062530279161],[41.944672916374834,-72.00994133949281],[41.94499459772672,-72.00825423002244],[41.945765082066565,-72.00875848531724],[41.94560140482512,-72.00903207063676],[41.94553553459716,-72.00938880443574],[41.94649164426082,-72.00979650020601]] },
+      { cropId: 'grapes', mature: true, latlngs: [[41.94704703707862,-72.01093375682832],[41.946601922792325,-72.01052069664003],[41.946629867278425,-72.00966238975526],[41.946829470394235,-72.00976699590684],[41.94730053126975,-72.01025247573854]] },
+      { cropId: 'grapes', mature: true, latlngs: [[41.94644373931619,-72.01064944267274],[41.94639184225219,-72.01062530279161],[41.944672916374834,-72.00994133949281],[41.94499459772672,-72.00825423002244],[41.945765082066565,-72.00875848531724],[41.94560140482512,-72.00903207063676],[41.94553553459716,-72.00938880443574],[41.94649164426082,-72.00979650020601]] },
       { cropId: 'buildings', latlngs: [[41.94710911711775,-72.00999766588212],[41.946839653945766,-72.00975090265275],[41.94658615792202,-72.00963824987413],[41.9465083124841,-72.00969725847246],[41.94632866880304,-72.00953900814058],[41.94641050654276,-72.00930565595628],[41.946953427423956,-72.0095604658127],[41.94722688214637,-72.00975090265275]] },
       { cropId: 'buildings', latlngs: [[41.94486331856184,-72.00795650482179],[41.94454194732781,-72.00778484344484],[41.94444813057512,-72.007454931736],[41.94460183028923,-72.00713843107225],[41.94510484494482,-72.00757831335069],[41.94503498203551,-72.007814347744]] },
       { cropId: 'driveway', latlngs: [[41.94633096559289,-72.00949877500535],[41.9462650961187,-72.00921714305879],[41.94598564910782,-72.00892746448518],[41.94578604335008,-72.00863510370256],[41.9456363386217,-72.00834810733797],[41.94558244483342,-72.00806111097337],[41.94555849202403,-72.00782775878908],[41.94593774378294,-72.00717866420747],[41.94597966094419,-72.00726985931398],[41.94565430320765,-72.00781702995302],[41.94567226778858,-72.00816839933397],[41.945784047289386,-72.00848221778871],[41.946021578077826,-72.00883626937868],[41.94609543200817,-72.00875580310823],[41.946748137348976,-72.00928151607515],[41.94668027227313,-72.00943171977998],[41.94641080728853,-72.00929224491121]] },
@@ -1245,6 +1254,7 @@
           cropId: dz.cropId,
           layer: layer,
           name: generateCropName(dz.cropId),
+          mature: dz.mature || false,
         };
         zones.push(zone);
         updateLayerPopup(zone);

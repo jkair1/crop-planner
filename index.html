@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crop Planner — 848 Route 171, Woodstock CT</title>
+
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Leaflet Draw -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.css" />
+  <script src="https://unpkg.com/leaflet-draw@1.0.4/dist/leaflet.draw.js"></script>
+
+  <!-- Turf.js for area calculations -->
+  <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      background: #1a1a2e;
+      color: #e0e0e0;
+    }
+
+    /* Sidebar */
+    #sidebar {
+      width: 340px;
+      background: #16213e;
+      border-right: 1px solid #0f3460;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      z-index: 1000;
+    }
+
+    #sidebar h1 {
+      font-size: 1.1rem;
+      padding: 16px 20px 4px;
+      color: #e94560;
+      letter-spacing: 0.5px;
+    }
+
+    #sidebar .subtitle {
+      font-size: 0.75rem;
+      padding: 0 20px 12px;
+      color: #8899aa;
+    }
+
+    .section-title {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #5c7a99;
+      padding: 14px 20px 6px;
+      border-top: 1px solid #0f3460;
+    }
+
+    /* Crop Palette */
+    #crop-palette {
+      padding: 8px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .crop-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      border: 2px solid transparent;
+      border-radius: 6px;
+      background: #1a1a2e;
+      color: #ccc;
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .crop-btn:hover { background: #1e2a4a; }
+
+    .crop-btn.active {
+      border-color: #e94560;
+      background: #1e2a4a;
+      color: #fff;
+    }
+
+    .crop-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+      flex-shrink: 0;
+    }
+
+    /* Instructions */
+    #instructions {
+      padding: 10px 20px;
+      font-size: 0.78rem;
+      color: #8899aa;
+      line-height: 1.5;
+    }
+
+    #instructions ol {
+      padding-left: 18px;
+    }
+
+    #instructions li {
+      margin-bottom: 4px;
+    }
+
+    /* Zone List */
+    #zone-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 12px;
+    }
+
+    .zone-card {
+      background: #1a1a2e;
+      border: 1px solid #0f3460;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+      transition: border-color 0.15s;
+    }
+
+    .zone-card:hover { border-color: #e94560; }
+
+    .zone-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .zone-name {
+      font-weight: 600;
+      font-size: 0.85rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .zone-actions {
+      display: flex;
+      gap: 4px;
+    }
+
+    .zone-actions button {
+      background: none;
+      border: 1px solid #333;
+      border-radius: 4px;
+      color: #8899aa;
+      cursor: pointer;
+      padding: 2px 8px;
+      font-size: 0.7rem;
+      transition: all 0.15s;
+    }
+
+    .zone-actions button:hover {
+      border-color: #e94560;
+      color: #e94560;
+    }
+
+    .zone-detail {
+      font-size: 0.75rem;
+      color: #8899aa;
+    }
+
+    .zone-crop-select {
+      margin-top: 6px;
+      width: 100%;
+      padding: 4px 8px;
+      background: #16213e;
+      border: 1px solid #0f3460;
+      color: #e0e0e0;
+      border-radius: 4px;
+      font-size: 0.78rem;
+    }
+
+    /* Summary */
+    #summary {
+      padding: 12px 20px;
+      border-top: 1px solid #0f3460;
+      background: #0f1a2e;
+    }
+
+    #summary h3 {
+      font-size: 0.8rem;
+      color: #e94560;
+      margin-bottom: 8px;
+    }
+
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.75rem;
+      padding: 3px 0;
+      color: #aaa;
+    }
+
+    .summary-row .label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .summary-total {
+      border-top: 1px solid #0f3460;
+      margin-top: 6px;
+      padding-top: 6px;
+      font-weight: 600;
+      color: #e0e0e0;
+    }
+
+    /* Map */
+    #map-container {
+      flex: 1;
+      position: relative;
+    }
+
+    #map { height: 100%; width: 100%; }
+
+    /* Custom draw toolbar styling */
+    .leaflet-draw-toolbar a {
+      background-color: #16213e !important;
+      color: #e0e0e0;
+    }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #e94560;
+      color: #fff;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    #toast.show { opacity: 1; }
+
+    /* Export button */
+    .export-btn {
+      display: block;
+      margin: 8px 20px 14px;
+      padding: 8px 16px;
+      background: #e94560;
+      border: none;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 0.8rem;
+      cursor: pointer;
+      text-align: center;
+      transition: background 0.15s;
+    }
+
+    .export-btn:hover { background: #c73752; }
+
+    .suggest-btn:hover { background: #0a5e49 !important; }
+
+    #rationale-panel {
+      display: none;
+      padding: 12px 20px;
+      border-top: 1px solid #0f3460;
+      background: #0f1a2e;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+
+    #rationale-panel h3 {
+      font-size: 0.8rem;
+      color: #3dbf7a;
+      margin-bottom: 8px;
+    }
+
+    .rationale-item {
+      font-size: 0.72rem;
+      color: #8899aa;
+      margin-bottom: 8px;
+      line-height: 1.4;
+      padding-left: 8px;
+      border-left: 2px solid #0f3460;
+    }
+
+    .rationale-item b { color: #ccc; }
+    .rationale-item .revenue { color: #3dbf7a; }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      body { flex-direction: column; }
+      #sidebar { width: 100%; max-height: 45vh; }
+    }
+  </style>
+</head>
+<body>
+  <div id="sidebar">
+    <h1>Crop Planner</h1>
+    <div class="subtitle">848 Route 171, Woodstock, CT 06281 &mdash; 43 Acres</div>
+
+    <div class="section-title">1. Select a Crop</div>
+    <div id="crop-palette"></div>
+
+    <div class="section-title">2. Draw Zones on Map</div>
+    <div id="instructions">
+      <ol>
+        <li>Pick a crop above</li>
+        <li>Use the <b>polygon tool</b> (left of map) to draw a zone</li>
+        <li>Click points to form the shape, then click the first point to close</li>
+        <li>Change crop assignments below</li>
+      </ol>
+    </div>
+
+    <div class="section-title">Planned Zones</div>
+    <div id="zone-list"><p style="font-size:0.78rem;color:#556;padding:8px;">No zones yet. Draw polygons on the map to add crop zones.</p></div>
+
+    <div id="summary"></div>
+
+    <div id="rationale-panel"></div>
+    <button class="export-btn suggest-btn" onclick="loadSuggestedPlan()" style="background:#0f7b5f;">Load AI-Suggested Crop Plan</button>
+    <button class="export-btn" onclick="exportPlan()">Export Plan as JSON</button>
+  </div>
+
+  <div id="map-container">
+    <div id="map"></div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    // ── Crop Definitions ──────────────────────────────────────────
+    const CROPS = [
+      { id: 'grapes',       name: 'Grapes (Vineyard)',  color: '#7b2d8e', icon: '🍇' },
+      { id: 'hops',         name: 'Hops',               color: '#2d8e4e', icon: '🌿' },
+      { id: 'vegetables',   name: 'Vegetables',         color: '#e8a838', icon: '🥕' },
+      { id: 'orchard',      name: 'Orchard / Fruit',    color: '#d94f4f', icon: '🍎' },
+      { id: 'herbs',        name: 'Herbs',              color: '#3dbf7a', icon: '🌱' },
+      { id: 'berries',      name: 'Berries',            color: '#c94080', icon: '🫐' },
+      { id: 'lavender',     name: 'Lavender',           color: '#9370DB', icon: '💜' },
+      { id: 'sunflowers',   name: 'Sunflowers',         color: '#FFD700', icon: '🌻' },
+      { id: 'nut_trees',    name: 'Nut Trees',          color: '#8B6914', icon: '🌰' },
+      { id: 'saffron',      name: 'Saffron',            color: '#FF6347', icon: '🌸' },
+      { id: 'cover_crop',   name: 'Cover Crop',         color: '#556B2F', icon: '🍀' },
+    ];
+
+    let selectedCrop = CROPS[0];
+    let zones = [];
+    let zoneIdCounter = 0;
+
+    // ── Build Crop Palette ────────────────────────────────────────
+    const paletteEl = document.getElementById('crop-palette');
+    CROPS.forEach((crop, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'crop-btn' + (i === 0 ? ' active' : '');
+      btn.innerHTML = `<span class="crop-swatch" style="background:${crop.color}"></span>${crop.icon} ${crop.name}`;
+      btn.onclick = () => {
+        document.querySelectorAll('.crop-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        selectedCrop = crop;
+      };
+      paletteEl.appendChild(btn);
+    });
+
+    // ── Map Setup ─────────────────────────────────────────────────
+    const PROPERTY_CENTER = [41.948887, -72.010928];
+
+    const map = L.map('map', {
+      center: PROPERTY_CENTER,
+      zoom: 16,
+      zoomControl: true,
+    });
+
+    // Satellite layer (Esri)
+    const satellite = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      { attribution: 'Tiles &copy; Esri', maxZoom: 19 }
+    );
+
+    // Street map layer
+    const streets = L.tileLayer(
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }
+    );
+
+    // Hybrid labels over satellite
+    const labels = L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}',
+      { maxZoom: 19 }
+    );
+
+    // Default to satellite
+    satellite.addTo(map);
+    labels.addTo(map);
+
+    L.control.layers({
+      'Satellite': L.layerGroup([satellite, labels]),
+      'Street Map': streets,
+    }, null, { position: 'topright' }).addTo(map);
+
+    // Property marker
+    L.marker(PROPERTY_CENTER)
+      .addTo(map)
+      .bindPopup('<b>848 Route 171</b><br>Taylor Brooke Vineyard<br>Woodstock, CT 06281<br>43 Acres')
+      .openPopup();
+
+    // ── Draw Controls ─────────────────────────────────────────────
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+
+    const drawControl = new L.Control.Draw({
+      draw: {
+        polygon: {
+          allowIntersection: false,
+          shapeOptions: {
+            color: selectedCrop.color,
+            weight: 2,
+            fillOpacity: 0.35,
+          }
+        },
+        rectangle: {
+          shapeOptions: {
+            color: selectedCrop.color,
+            weight: 2,
+            fillOpacity: 0.35,
+          }
+        },
+        circle: false,
+        circlemarker: false,
+        marker: false,
+        polyline: false,
+      },
+      edit: {
+        featureGroup: drawnItems,
+        remove: true,
+      }
+    });
+    map.addControl(drawControl);
+
+    // Override shape options dynamically based on selected crop
+    map.on(L.Draw.Event.DRAWSTART, function () {
+      const toolbar = drawControl._toolbars.draw;
+      if (toolbar._modes.polygon) {
+        toolbar._modes.polygon.handler.options.shapeOptions.color = selectedCrop.color;
+      }
+      if (toolbar._modes.rectangle) {
+        toolbar._modes.rectangle.handler.options.shapeOptions.color = selectedCrop.color;
+      }
+    });
+
+    // ── Zone Created ──────────────────────────────────────────────
+    map.on(L.Draw.Event.CREATED, function (e) {
+      const layer = e.layer;
+      layer.setStyle({
+        color: selectedCrop.color,
+        fillColor: selectedCrop.color,
+        fillOpacity: 0.35,
+        weight: 2,
+      });
+
+      drawnItems.addLayer(layer);
+
+      const zone = {
+        id: ++zoneIdCounter,
+        cropId: selectedCrop.id,
+        layer: layer,
+        name: `Zone ${zoneIdCounter}`,
+      };
+      zones.push(zone);
+
+      // Bind popup
+      updateLayerPopup(zone);
+
+      // Add label
+      addZoneLabel(zone);
+
+      renderZoneList();
+      renderSummary();
+      saveToStorage();
+      showToast(`Added ${selectedCrop.name} zone (${calcAcres(layer).toFixed(2)} acres)`);
+    });
+
+    // Zone deleted
+    map.on(L.Draw.Event.DELETED, function (e) {
+      e.layers.eachLayer(function (layer) {
+        zones = zones.filter(z => z.layer !== layer);
+        if (layer._label) map.removeLayer(layer._label);
+      });
+      renderZoneList();
+      renderSummary();
+      saveToStorage();
+    });
+
+    // Zone edited
+    map.on(L.Draw.Event.EDITED, function () {
+      zones.forEach(z => {
+        updateLayerPopup(z);
+        if (z._label) map.removeLayer(z._label);
+        addZoneLabel(z);
+      });
+      renderZoneList();
+      renderSummary();
+      saveToStorage();
+    });
+
+    // ── Helpers ───────────────────────────────────────────────────
+    function calcAcres(layer) {
+      const latlngs = layer.getLatLngs()[0].map(ll => [ll.lng, ll.lat]);
+      latlngs.push(latlngs[0]); // close ring
+      const polygon = turf.polygon([latlngs]);
+      const sqMeters = turf.area(polygon);
+      return sqMeters / 4046.86; // sq meters to acres
+    }
+
+    function getCrop(id) {
+      return CROPS.find(c => c.id === id);
+    }
+
+    function updateLayerPopup(zone) {
+      const crop = getCrop(zone.cropId);
+      const acres = calcAcres(zone.layer).toFixed(2);
+      zone.layer.bindPopup(
+        `<b>${zone.name}</b><br>Crop: ${crop.icon} ${crop.name}<br>Area: ${acres} acres`
+      );
+    }
+
+    function addZoneLabel(zone) {
+      const crop = getCrop(zone.cropId);
+      const center = zone.layer.getBounds().getCenter();
+      const acres = calcAcres(zone.layer).toFixed(1);
+      const label = L.marker(center, {
+        icon: L.divIcon({
+          className: 'zone-label',
+          html: `<div style="
+            background:rgba(0,0,0,0.65);
+            color:#fff;
+            padding:3px 8px;
+            border-radius:4px;
+            font-size:11px;
+            white-space:nowrap;
+            text-align:center;
+            border:1px solid ${crop.color};
+          ">${crop.icon} ${zone.name}<br>${acres} ac</div>`,
+          iconSize: [0, 0],
+          iconAnchor: [40, 12],
+        }),
+        interactive: false,
+      });
+      label.addTo(map);
+      zone.layer._label = label;
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    // ── Render Zone List ──────────────────────────────────────────
+    function renderZoneList() {
+      const el = document.getElementById('zone-list');
+
+      if (zones.length === 0) {
+        el.innerHTML = '<p style="font-size:0.78rem;color:#556;padding:8px;">No zones yet. Draw polygons on the map to add crop zones.</p>';
+        return;
+      }
+
+      el.innerHTML = zones.map(z => {
+        const crop = getCrop(z.cropId);
+        const acres = calcAcres(z.layer).toFixed(2);
+        const options = CROPS.map(c =>
+          `<option value="${c.id}" ${c.id === z.cropId ? 'selected' : ''}>${c.icon} ${c.name}</option>`
+        ).join('');
+
+        return `
+          <div class="zone-card" data-id="${z.id}">
+            <div class="zone-header">
+              <div class="zone-name">
+                <span class="crop-swatch" style="background:${crop.color}"></span>
+                <span contenteditable="true"
+                      onblur="renameZone(${z.id}, this.textContent)"
+                      style="outline:none;cursor:text;">${z.name}</span>
+              </div>
+              <div class="zone-actions">
+                <button onclick="zoomToZone(${z.id})" title="Zoom to zone">Zoom</button>
+                <button onclick="deleteZone(${z.id})" title="Delete zone">Del</button>
+              </div>
+            </div>
+            <div class="zone-detail">${acres} acres</div>
+            <select class="zone-crop-select" onchange="changeCrop(${z.id}, this.value)">
+              ${options}
+            </select>
+          </div>`;
+      }).join('');
+    }
+
+    // ── Zone Actions ──────────────────────────────────────────────
+    function renameZone(id, name) {
+      const z = zones.find(z => z.id === id);
+      if (!z) return;
+      z.name = name.trim() || z.name;
+      updateLayerPopup(z);
+      if (z.layer._label) map.removeLayer(z.layer._label);
+      addZoneLabel(z);
+      saveToStorage();
+    }
+
+    function changeCrop(id, cropId) {
+      const z = zones.find(z => z.id === id);
+      if (!z) return;
+      z.cropId = cropId;
+      const crop = getCrop(cropId);
+      z.layer.setStyle({ color: crop.color, fillColor: crop.color });
+      updateLayerPopup(z);
+      if (z.layer._label) map.removeLayer(z.layer._label);
+      addZoneLabel(z);
+      renderZoneList();
+      renderSummary();
+      saveToStorage();
+    }
+
+    function zoomToZone(id) {
+      const z = zones.find(z => z.id === id);
+      if (!z) return;
+      map.fitBounds(z.layer.getBounds(), { padding: [60, 60] });
+    }
+
+    function deleteZone(id) {
+      const z = zones.find(z => z.id === id);
+      if (!z) return;
+      drawnItems.removeLayer(z.layer);
+      if (z.layer._label) map.removeLayer(z.layer._label);
+      zones = zones.filter(z => z.id !== id);
+      renderZoneList();
+      renderSummary();
+      saveToStorage();
+    }
+
+    // ── Summary Panel ─────────────────────────────────────────────
+    function renderSummary() {
+      const el = document.getElementById('summary');
+
+      if (zones.length === 0) {
+        el.innerHTML = '';
+        return;
+      }
+
+      // Group by crop
+      const grouped = {};
+      let totalAcres = 0;
+
+      zones.forEach(z => {
+        const acres = calcAcres(z.layer);
+        totalAcres += acres;
+        if (!grouped[z.cropId]) grouped[z.cropId] = 0;
+        grouped[z.cropId] += acres;
+      });
+
+      const rows = Object.entries(grouped).map(([cropId, acres]) => {
+        const crop = getCrop(cropId);
+        return `
+          <div class="summary-row">
+            <span class="label">
+              <span class="crop-swatch" style="background:${crop.color}"></span>
+              ${crop.icon} ${crop.name}
+            </span>
+            <span>${acres.toFixed(2)} ac</span>
+          </div>`;
+      }).join('');
+
+      const remaining = 43 - totalAcres;
+
+      el.innerHTML = `
+        <h3>Crop Summary</h3>
+        ${rows}
+        <div class="summary-row summary-total">
+          <span>Total Planned</span>
+          <span>${totalAcres.toFixed(2)} ac</span>
+        </div>
+        <div class="summary-row" style="color:${remaining < 0 ? '#e94560' : '#5c7a99'}">
+          <span>${remaining >= 0 ? 'Remaining' : 'Over-allocated'}</span>
+          <span>${Math.abs(remaining).toFixed(2)} ac</span>
+        </div>
+      `;
+    }
+
+    // ── Export ─────────────────────────────────────────────────────
+    function exportPlan() {
+      if (zones.length === 0) {
+        showToast('No zones to export');
+        return;
+      }
+
+      const data = {
+        property: {
+          address: '848 Route 171, Woodstock, CT 06281',
+          mls: '24074696',
+          totalAcres: 43,
+          center: PROPERTY_CENTER,
+        },
+        zones: zones.map(z => {
+          const crop = getCrop(z.cropId);
+          const latlngs = z.layer.getLatLngs()[0].map(ll => ({lat: ll.lat, lng: ll.lng}));
+          return {
+            name: z.name,
+            crop: crop.name,
+            cropId: z.cropId,
+            acres: parseFloat(calcAcres(z.layer).toFixed(2)),
+            coordinates: latlngs,
+          };
+        }),
+        exportDate: new Date().toISOString(),
+      };
+
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `crop-plan-woodstock-${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Plan exported!');
+    }
+
+    // ── LocalStorage Persistence ─────────────────────────────────
+    const STORAGE_KEY = 'cropPlannerZones';
+
+    function saveToStorage() {
+      const data = zones.map(z => ({
+        id: z.id,
+        cropId: z.cropId,
+        name: z.name,
+        latlngs: z.layer.getLatLngs()[0].map(ll => [ll.lat, ll.lng]),
+      }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    function loadFromStorage() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      try {
+        const data = JSON.parse(raw);
+        data.forEach(d => {
+          const crop = getCrop(d.cropId);
+          if (!crop) return;
+          const latlngs = d.latlngs.map(ll => L.latLng(ll[0], ll[1]));
+          const layer = L.polygon(latlngs, {
+            color: crop.color,
+            fillColor: crop.color,
+            fillOpacity: 0.35,
+            weight: 2,
+          });
+          drawnItems.addLayer(layer);
+          const zone = {
+            id: d.id,
+            cropId: d.cropId,
+            layer: layer,
+            name: d.name,
+          };
+          zones.push(zone);
+          if (d.id >= zoneIdCounter) zoneIdCounter = d.id;
+          updateLayerPopup(zone);
+          addZoneLabel(zone);
+        });
+        renderZoneList();
+        renderSummary();
+        if (zones.length > 0) showToast(`Restored ${zones.length} saved zone(s)`);
+      } catch (e) {
+        console.warn('Failed to load saved zones:', e);
+      }
+    }
+
+    // Load saved zones on startup
+    loadFromStorage();
+
+    // ── AI-Suggested Crop Plan ────────────────────────────────────
+    // Based on research of: Woodstock CT Zone 6a climate, Paxton loam
+    // (acidic glacial till, pH ~5.0-5.8), ~135-day growing season,
+    // drumlin terrain, proximity to Hartford/Providence/Boston markets,
+    // and existing Taylor Brooke Winery/Brewery infrastructure.
+    const SUGGESTED_ZONES = [
+      // === SOUTHERN STRIP (Route 171 frontage, south-facing) ===
+      { name: 'Sunflower Field',
+        cropId: 'sunflowers',
+        latlngs: [[41.9478,-72.0145],[41.9478,-72.0130],[41.9487,-72.0130],[41.9487,-72.0145]],
+        rationale: 'Road-facing agritourism draw. CT sunflower festivals (like Buttonwood Farm) attract 50K+ visitors. Drives traffic to winery/brewery. ~$3K/ac direct + $15K+ agritourism spillover.',
+        estRevenue: '$10K-$20K/yr'
+      },
+      { name: 'Hop Yard',
+        cropId: 'hops',
+        latlngs: [[41.9478,-72.0130],[41.9478,-72.0115],[41.9487,-72.0115],[41.9487,-72.0130]],
+        rationale: 'Adjacent to brewery (818 lot). Direct supply chain for on-site craft beer. CT craft beer market growing. 1,100-1,500 lbs/ac dried at $5-15/lb. Trellis system needed ($12-15K/ac startup).',
+        estRevenue: '$12K-$25K/ac/yr'
+      },
+      { name: 'Culinary Herb Garden',
+        cropId: 'herbs',
+        latlngs: [[41.9478,-72.0115],[41.9478,-72.0103],[41.9487,-72.0103],[41.9487,-72.0115]],
+        rationale: 'Central location near buildings for daily harvest. Basil, thyme, rosemary, oregano, chamomile. Restaurant supply to Hartford/Providence (68-79% margins). Multiple harvests per season.',
+        estRevenue: '$15K-$30K/ac/yr'
+      },
+      { name: 'Saffron Beds',
+        cropId: 'saffron',
+        latlngs: [[41.9478,-72.0103],[41.9478,-72.0092],[41.9487,-72.0092],[41.9487,-72.0103]],
+        rationale: 'HIGHEST VALUE CROP. Saffron thrives in New England (UVM research). Acidic soil w/ 5%+ organic matter is ideal. Oct-Nov harvest when other field work is done. $19/gram retail. Labor-intensive but small acreage maximizes ROI.',
+        estRevenue: '$20K-$60K/ac/yr'
+      },
+      { name: 'Existing Vineyard',
+        cropId: 'grapes',
+        latlngs: [[41.9478,-72.0092],[41.9478,-72.0068],[41.9487,-72.0068],[41.9487,-72.0092]],
+        rationale: 'Established ~5 acres. South-facing, well-drained slope. Taylor Brooke already produces award-winning wines. Value-added wine sales at $15-30/bottle dramatically increase per-acre returns vs raw grape sales.',
+        estRevenue: '$15K-$50K/ac/yr (wine)'
+      },
+      // === MIDDLE STRIP (main production area) ===
+      { name: 'Chestnut Grove',
+        cropId: 'nut_trees',
+        latlngs: [[41.9487,-72.0145],[41.9487,-72.0110],[41.9496,-72.0110],[41.9496,-72.0145]],
+        rationale: 'Long-term investment (15yr to peak). Chestnuts thrive in acidic soil, 50%+ more precipitation than European chestnut regions. 3,500-4,000 lbs/ac at maturity, $2-5.50/lb. Low maintenance once established. Erosion control on slopes.',
+        estRevenue: '$7K-$15K/ac/yr (yr 12+)'
+      },
+      { name: 'Apple & Pear Orchard',
+        cropId: 'orchard',
+        latlngs: [[41.9487,-72.0110],[41.9487,-72.0092],[41.9496,-72.0092],[41.9496,-72.0110]],
+        rationale: 'Apples are CT\'s top fruit crop. U-pick agritourism synergy. Can produce hard cider for winery/brewery taproom (value-added). Honeycrisp, Cortland, Macoun varieties thrive in Zone 6a.',
+        estRevenue: '$5K-$15K/ac/yr'
+      },
+      { name: 'Vineyard Expansion',
+        cropId: 'grapes',
+        latlngs: [[41.9487,-72.0092],[41.9487,-72.0068],[41.9496,-72.0068],[41.9496,-72.0092]],
+        rationale: 'Contiguous with existing vineyard, same south-facing aspect and soil. Leverages existing winery infrastructure and brand. CT wine industry growing 3.9%/yr. Cold-hardy hybrids (Marquette, La Crescent) for expanded variety.',
+        estRevenue: '$15K-$50K/ac/yr (wine)'
+      },
+      // === NORTHERN STRIP (back of property) ===
+      { name: 'Blueberry Patch',
+        cropId: 'berries',
+        latlngs: [[41.9496,-72.0145],[41.9496,-72.0110],[41.9503,-72.0110],[41.9503,-72.0145]],
+        rationale: 'PERFECT for acidic Paxton loam (pH 4.5-5.5 ideal). 8,000-9,000 lbs/ac at maturity. PYO model reduces labor costs. Lyman Orchards harvests 25,000 lbs/yr in CT. Highbush varieties (Bluecrop, Jersey) proven in Zone 6a.',
+        estRevenue: '$8K-$25K/ac/yr'
+      },
+      { name: 'Lavender Field',
+        cropId: 'lavender',
+        latlngs: [[41.9496,-72.0110],[41.9496,-72.0068],[41.9503,-72.0068],[41.9503,-72.0110]],
+        rationale: 'Well-drained upper slopes ideal. Agritourism photo destination (complements sunflowers). Essential oils, dried bouquets, sachets. Pairs beautifully with winery tasting room retail. Peak harvest in 5 years. Angustifolia varieties winter-hardy to Zone 5.',
+        estRevenue: '$10K-$30K/ac/yr'
+      },
+    ];
+
+    function clearAllZones() {
+      zones.forEach(z => {
+        drawnItems.removeLayer(z.layer);
+        if (z.layer._label) map.removeLayer(z.layer._label);
+      });
+      zones = [];
+      zoneIdCounter = 0;
+    }
+
+    function loadSuggestedPlan() {
+      if (zones.length > 0 && !confirm('This will replace your current zones with the AI-suggested plan. Continue?')) return;
+
+      clearAllZones();
+
+      SUGGESTED_ZONES.forEach(sz => {
+        const crop = getCrop(sz.cropId);
+        if (!crop) return;
+        const latlngs = sz.latlngs.map(ll => L.latLng(ll[0], ll[1]));
+        const layer = L.polygon(latlngs, {
+          color: crop.color,
+          fillColor: crop.color,
+          fillOpacity: 0.35,
+          weight: 2,
+        });
+        drawnItems.addLayer(layer);
+        const zone = {
+          id: ++zoneIdCounter,
+          cropId: sz.cropId,
+          layer: layer,
+          name: sz.name,
+        };
+        zones.push(zone);
+        updateLayerPopup(zone);
+        addZoneLabel(zone);
+      });
+
+      renderZoneList();
+      renderSummary();
+      saveToStorage();
+
+      // Show rationale panel
+      const panel = document.getElementById('rationale-panel');
+      panel.style.display = 'block';
+      panel.innerHTML = `
+        <h3>AI Crop Plan Rationale</h3>
+        <div class="rationale-item" style="border-left-color:#3dbf7a;margin-bottom:12px;">
+          <b>Site Analysis:</b> Woodstock CT, Zone 6a. Paxton loam (acidic glacial till, pH ~5.0-5.8).
+          ~135 frost-free days (May-Oct). Rolling drumlin terrain with south-facing slopes.
+          Within 1.5hr of Hartford, Providence, Boston markets. Existing winery + brewery infrastructure.
+        </div>
+        ${SUGGESTED_ZONES.map(sz => {
+          const crop = getCrop(sz.cropId);
+          return `<div class="rationale-item" style="border-left-color:${crop.color}">
+            <b>${crop.icon} ${sz.name}</b> — <span class="revenue">${sz.estRevenue}</span><br>
+            ${sz.rationale}
+          </div>`;
+        }).join('')}
+        <div class="rationale-item" style="border-left-color:#e94560;margin-top:12px;">
+          <b>Estimated Total Revenue at Maturity:</b> <span class="revenue">$500K-$900K/yr</span><br>
+          Timeline: Herbs/saffron producing Year 1-2. Hops/blueberries Year 3-5. Orchard Year 4-7. Chestnuts Year 12-15 for peak. Diversified revenue stream reduces risk.
+        </div>
+      `;
+
+      // Fit map to show all zones
+      const bounds = drawnItems.getBounds();
+      if (bounds.isValid()) map.fitBounds(bounds, { padding: [40, 40] });
+
+      showToast('AI-suggested crop plan loaded!');
+    }
+
+    // ── Keyboard shortcut ─────────────────────────────────────────
+    document.addEventListener('keydown', (e) => {
+      // Press 1-9 to quickly select crops
+      const num = parseInt(e.key);
+      if (num >= 1 && num <= CROPS.length) {
+        const btns = document.querySelectorAll('.crop-btn');
+        btns.forEach(b => b.classList.remove('active'));
+        btns[num - 1].classList.add('active');
+        selectedCrop = CROPS[num - 1];
+        showToast(`Selected: ${selectedCrop.icon} ${selectedCrop.name}`);
+      }
+    });
+
+    // Auto-load suggested plan on first visit (or if no saved zones)
+    if (zones.length === 0 || !localStorage.getItem('cropPlannerSuggestedSeen')) {
+      localStorage.setItem('cropPlannerSuggestedSeen', 'true');
+      loadSuggestedPlan();
+    }
+  </script>
+</body>
+</html>

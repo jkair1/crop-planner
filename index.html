@@ -427,10 +427,6 @@
     const CROPS = [
       { id: 'grapes',       name: 'Grapes (Vineyard)',  color: '#7b2d8e', icon: '🍇', yieldPerAcre: 8000,  wholesalePerLb: 4.39,   retailPerLb: 9.75,
         yieldByYear: [0, 0.38, 0.75, 1.0, 1.0, 1.0] },
-      { id: 'hops',         name: 'Hops',               color: '#2d8e4e', icon: '🌿', yieldPerAcre: 300,   wholesalePerLb: 8.00,   retailPerLb: 15.00,
-        yieldByYear: [0, 0.30, 0.80, 1.0, 1.0, 1.0] },
-      { id: 'vegetables',   name: 'Vegetables',         color: '#e8a838', icon: '🥕', yieldPerAcre: 15000, wholesalePerLb: 1.00,   retailPerLb: 3.50,
-        yieldByYear: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0] },
       { id: 'orchard',      name: 'Orchard / Fruit',    color: '#d94f4f', icon: '🍎', yieldPerAcre: 15750, wholesalePerLb: 1.00,   retailPerLb: 2.75,
         yieldByYear: [0, 0.13, 0.53, 0.80, 1.0, 1.0] },
       { id: 'herbs',        name: 'Herbs',              color: '#3dbf7a', icon: '🌱', yieldPerAcre: 6000,  wholesalePerLb: 5.50,   retailPerLb: 11.00,
@@ -451,9 +447,9 @@
         treesPerAcrePerYear: 118, wholesalePerTree: 15, retailPerTree: 60,
         yieldByYear: [0, 0, 0, 0, 0, 1.0] },
       { id: 'buildings',    name: 'Buildings',           color: '#666666', icon: '🏢', yieldPerAcre: 0,     wholesalePerLb: 0,      retailPerLb: 0,
-        yieldByYear: [0, 0, 0, 0, 0, 0] },
+        yieldByYear: [0, 0, 0, 0, 0, 0], noCalc: true },
       { id: 'driveway',     name: 'Driveway',            color: '#999999', icon: '🛤️', yieldPerAcre: 0,     wholesalePerLb: 0,      retailPerLb: 0,
-        yieldByYear: [0, 0, 0, 0, 0, 0] },
+        yieldByYear: [0, 0, 0, 0, 0, 0], noCalc: true },
     ];
 
     let selectedYear = 5; // index into yieldByYear (0=yr1, ..., 5=maturity)
@@ -924,11 +920,12 @@
       zones.forEach(z => {
         const acres = calcAcres(z.layer);
         const crop = getCrop(z.cropId);
+        totalAcres += acres;
+        if (crop.noCalc) return;
         const yi = z.mature ? 5 : selectedYear;
         const ym = crop.yieldByYear ? crop.yieldByYear[yi] : 1;
         const lbs = acres * crop.yieldPerAcre * ym;
         const result = calcCropRevenue(crop, acres, z.mature ? 5 : undefined);
-        totalAcres += acres;
         if (!grouped[z.cropId]) grouped[z.cropId] = { acres: 0, lbs: 0, revenue: 0, trees: 0 };
         grouped[z.cropId].acres += acres;
         grouped[z.cropId].lbs += lbs;

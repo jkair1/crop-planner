@@ -219,6 +219,27 @@
       color: #e0e0e0;
     }
 
+    .summary-crop-block {
+      margin-bottom: 4px;
+    }
+
+    .summary-detail {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.7rem;
+      padding: 0 0 2px 22px;
+      color: #7a8a9a;
+    }
+
+    .summary-revenue {
+      color: #4ecdc4;
+      font-weight: 600;
+    }
+
+    .summary-revenue-total .summary-revenue {
+      font-size: 0.85rem;
+    }
+
     /* Map */
     #map-container {
       flex: 1;
@@ -350,20 +371,33 @@
 
   <script>
     // ── Crop Definitions ──────────────────────────────────────────
+    // Yield (lbs/acre/year) and price ($/lb) for Woodstock CT, Zone 6a
+    // Grapes: ~6 tons/ac wine grapes, sold as wine at ~$12/bottle, 600 bottles/ton
+    // Hops: ~1,500 lbs/ac wet (~300 dry), craft market $8-15/lb dry
+    // Vegetables: mixed veg avg ~15,000 lbs/ac, farmstand/CSA avg $2/lb
+    // Orchard: mature apple/pear ~20,000 lbs/ac, wholesale+retail avg $0.80/lb
+    // Herbs: fresh culinary herbs ~5,000 lbs/ac, premium retail $6/lb
+    // Berries: blueberries ~6,000 lbs/ac, PYO/retail avg $4/lb
+    // Lavender: ~1,500 lbs fresh/ac, value-added (dried bundles, oil) avg $12/lb
+    // Sunflowers: ~1,200 lbs seed/ac, plus agritourism value, avg $0.50/lb + $3,000/ac tourism
+    // Nut Trees: mature chestnuts ~2,000 lbs/ac, specialty market $3.50/lb
+    // Saffron: ~4 lbs dried/ac, $1,500-$2,500/lb retail
+    // Cover Crop: no direct revenue
+    // Buildings/Driveway: no revenue
     const CROPS = [
-      { id: 'grapes',       name: 'Grapes (Vineyard)',  color: '#7b2d8e', icon: '🍇' },
-      { id: 'hops',         name: 'Hops',               color: '#2d8e4e', icon: '🌿' },
-      { id: 'vegetables',   name: 'Vegetables',         color: '#e8a838', icon: '🥕' },
-      { id: 'orchard',      name: 'Orchard / Fruit',    color: '#d94f4f', icon: '🍎' },
-      { id: 'herbs',        name: 'Herbs',              color: '#3dbf7a', icon: '🌱' },
-      { id: 'berries',      name: 'Berries',            color: '#c94080', icon: '🫐' },
-      { id: 'lavender',     name: 'Lavender',           color: '#9370DB', icon: '💜' },
-      { id: 'sunflowers',   name: 'Sunflowers',         color: '#FFD700', icon: '🌻' },
-      { id: 'nut_trees',    name: 'Nut Trees',          color: '#8B6914', icon: '🌰' },
-      { id: 'saffron',      name: 'Saffron',            color: '#FF6347', icon: '🌸' },
-      { id: 'cover_crop',   name: 'Cover Crop',         color: '#556B2F', icon: '🍀' },
-      { id: 'buildings',    name: 'Buildings',           color: '#666666', icon: '🏢' },
-      { id: 'driveway',     name: 'Driveway',            color: '#999999', icon: '🛤️' },
+      { id: 'grapes',       name: 'Grapes (Vineyard)',  color: '#7b2d8e', icon: '🍇', yieldPerAcre: 12000, pricePerLb: 3.00 },
+      { id: 'hops',         name: 'Hops',               color: '#2d8e4e', icon: '🌿', yieldPerAcre: 300,   pricePerLb: 12.00 },
+      { id: 'vegetables',   name: 'Vegetables',         color: '#e8a838', icon: '🥕', yieldPerAcre: 15000, pricePerLb: 2.00 },
+      { id: 'orchard',      name: 'Orchard / Fruit',    color: '#d94f4f', icon: '🍎', yieldPerAcre: 20000, pricePerLb: 0.80 },
+      { id: 'herbs',        name: 'Herbs',              color: '#3dbf7a', icon: '🌱', yieldPerAcre: 5000,  pricePerLb: 6.00 },
+      { id: 'berries',      name: 'Berries',            color: '#c94080', icon: '🫐', yieldPerAcre: 6000,  pricePerLb: 4.00 },
+      { id: 'lavender',     name: 'Lavender',           color: '#9370DB', icon: '💜', yieldPerAcre: 1500,  pricePerLb: 12.00 },
+      { id: 'sunflowers',   name: 'Sunflowers',         color: '#FFD700', icon: '🌻', yieldPerAcre: 1200,  pricePerLb: 3.00 },
+      { id: 'nut_trees',    name: 'Nut Trees',          color: '#8B6914', icon: '🌰', yieldPerAcre: 2000,  pricePerLb: 3.50 },
+      { id: 'saffron',      name: 'Saffron',            color: '#FF6347', icon: '🌸', yieldPerAcre: 4,     pricePerLb: 2000.00 },
+      { id: 'cover_crop',   name: 'Cover Crop',         color: '#556B2F', icon: '🍀', yieldPerAcre: 0,     pricePerLb: 0 },
+      { id: 'buildings',    name: 'Buildings',           color: '#666666', icon: '🏢', yieldPerAcre: 0,     pricePerLb: 0 },
+      { id: 'driveway',     name: 'Driveway',            color: '#999999', icon: '🛤️', yieldPerAcre: 0,     pricePerLb: 0 },
     ];
 
     let selectedCrop = CROPS[0];
@@ -770,6 +804,12 @@
     }
 
     // ── Summary Panel ─────────────────────────────────────────────
+    function formatNum(n) {
+      if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+      return n.toFixed(0);
+    }
+
     function renderSummary() {
       const el = document.getElementById('summary');
 
@@ -781,23 +821,37 @@
       // Group by crop
       const grouped = {};
       let totalAcres = 0;
+      let totalRevenue = 0;
+      let totalLbs = 0;
 
       zones.forEach(z => {
         const acres = calcAcres(z.layer);
         totalAcres += acres;
-        if (!grouped[z.cropId]) grouped[z.cropId] = 0;
-        grouped[z.cropId] += acres;
+        if (!grouped[z.cropId]) grouped[z.cropId] = { acres: 0 };
+        grouped[z.cropId].acres += acres;
       });
 
-      const rows = Object.entries(grouped).map(([cropId, acres]) => {
+      const rows = Object.entries(grouped).map(([cropId, data]) => {
         const crop = getCrop(cropId);
+        const lbs = data.acres * crop.yieldPerAcre;
+        const revenue = lbs * crop.pricePerLb;
+        totalRevenue += revenue;
+        totalLbs += lbs;
+        const hasYield = crop.yieldPerAcre > 0;
         return `
-          <div class="summary-row">
-            <span class="label">
-              <span class="crop-swatch" style="background:${crop.color}"></span>
-              ${crop.icon} ${crop.name}
-            </span>
-            <span>${acres.toFixed(2)} ac</span>
+          <div class="summary-crop-block">
+            <div class="summary-row">
+              <span class="label">
+                <span class="crop-swatch" style="background:${crop.color}"></span>
+                ${crop.icon} ${crop.name}
+              </span>
+              <span>${data.acres.toFixed(2)} ac</span>
+            </div>
+            ${hasYield ? `
+            <div class="summary-detail">
+              <span>${formatNum(lbs)} lbs/yr</span>
+              <span class="summary-revenue">$${formatNum(revenue)}/yr</span>
+            </div>` : ''}
           </div>`;
       }).join('');
 
@@ -813,6 +867,14 @@
         <div class="summary-row" style="color:${remaining < 0 ? '#e94560' : '#5c7a99'}">
           <span>${remaining >= 0 ? 'Remaining' : 'Over-allocated'}</span>
           <span>${Math.abs(remaining).toFixed(2)} ac</span>
+        </div>
+        <div class="summary-row summary-total" style="margin-top:10px;">
+          <span>Est. Annual Volume</span>
+          <span>${formatNum(totalLbs)} lbs</span>
+        </div>
+        <div class="summary-row summary-total summary-revenue-total">
+          <span>Est. Annual Revenue</span>
+          <span class="summary-revenue">$${formatNum(totalRevenue)}</span>
         </div>
       `;
     }

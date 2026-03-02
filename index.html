@@ -371,34 +371,37 @@
 
   <script>
     // ── Crop Definitions ──────────────────────────────────────────
-    // Yield (lbs/acre/year) and price ($/lb) for Woodstock CT, Zone 6a
-    // Grapes: ~6 tons/ac wine grapes, sold as wine at ~$12/bottle, 600 bottles/ton
-    // Hops: ~1,500 lbs/ac wet (~300 dry), craft market $8-15/lb dry
-    // Vegetables: mixed veg avg ~15,000 lbs/ac, farmstand/CSA avg $2/lb
-    // Orchard: mature apple/pear ~20,000 lbs/ac, wholesale+retail avg $0.80/lb
-    // Herbs: fresh culinary herbs ~5,000 lbs/ac, premium retail $6/lb
-    // Berries: blueberries ~6,000 lbs/ac, PYO/retail avg $4/lb
-    // Lavender: ~1,500 lbs fresh/ac, value-added (dried bundles, oil) avg $12/lb
-    // Sunflowers: ~1,200 lbs seed/ac, plus agritourism value, avg $0.50/lb + $3,000/ac tourism
-    // Nut Trees: mature chestnuts ~2,000 lbs/ac, specialty market $3.50/lb
-    // Saffron: ~4 lbs dried/ac, $1,500-$2,500/lb retail
-    // Cover Crop: no direct revenue
-    // Buildings/Driveway: no revenue
+    // Yield (lbs/acre/year) and pricing for Woodstock CT, Zone 6a
+    // Prices: 2/3 wholesale + 1/3 retail blend (except grapes → $25/bottle wine)
+    // Grapes: 6 tons/ac, 720 bottles/ton, $25/bottle
     const CROPS = [
-      { id: 'grapes',       name: 'Grapes (Vineyard)',  color: '#7b2d8e', icon: '🍇', yieldPerAcre: 12000, pricePerLb: 3.00 },
-      { id: 'hops',         name: 'Hops',               color: '#2d8e4e', icon: '🌿', yieldPerAcre: 300,   pricePerLb: 12.00 },
-      { id: 'vegetables',   name: 'Vegetables',         color: '#e8a838', icon: '🥕', yieldPerAcre: 15000, pricePerLb: 2.00 },
-      { id: 'orchard',      name: 'Orchard / Fruit',    color: '#d94f4f', icon: '🍎', yieldPerAcre: 20000, pricePerLb: 0.80 },
-      { id: 'herbs',        name: 'Herbs',              color: '#3dbf7a', icon: '🌱', yieldPerAcre: 5000,  pricePerLb: 6.00 },
-      { id: 'berries',      name: 'Berries',            color: '#c94080', icon: '🫐', yieldPerAcre: 6000,  pricePerLb: 4.00 },
-      { id: 'lavender',     name: 'Lavender',           color: '#9370DB', icon: '💜', yieldPerAcre: 1500,  pricePerLb: 12.00 },
-      { id: 'sunflowers',   name: 'Sunflowers',         color: '#FFD700', icon: '🌻', yieldPerAcre: 1200,  pricePerLb: 3.00 },
-      { id: 'nut_trees',    name: 'Nut Trees',          color: '#8B6914', icon: '🌰', yieldPerAcre: 2000,  pricePerLb: 3.50 },
-      { id: 'saffron',      name: 'Saffron',            color: '#FF6347', icon: '🌸', yieldPerAcre: 4,     pricePerLb: 2000.00 },
-      { id: 'cover_crop',   name: 'Cover Crop',         color: '#556B2F', icon: '🍀', yieldPerAcre: 0,     pricePerLb: 0 },
-      { id: 'buildings',    name: 'Buildings',           color: '#666666', icon: '🏢', yieldPerAcre: 0,     pricePerLb: 0 },
-      { id: 'driveway',     name: 'Driveway',            color: '#999999', icon: '🛤️', yieldPerAcre: 0,     pricePerLb: 0 },
+      { id: 'grapes',       name: 'Grapes (Vineyard)',  color: '#7b2d8e', icon: '🍇', yieldPerAcre: 12000, bottlesPerTon: 720, bottlePrice: 25 },
+      { id: 'hops',         name: 'Hops',               color: '#2d8e4e', icon: '🌿', yieldPerAcre: 300,   wholesalePerLb: 8,     retailPerLb: 15 },
+      { id: 'vegetables',   name: 'Vegetables',         color: '#e8a838', icon: '🥕', yieldPerAcre: 15000, wholesalePerLb: 1.00,  retailPerLb: 3.50 },
+      { id: 'orchard',      name: 'Orchard / Fruit',    color: '#d94f4f', icon: '🍎', yieldPerAcre: 20000, wholesalePerLb: 0.40,  retailPerLb: 2.00 },
+      { id: 'herbs',        name: 'Herbs',              color: '#3dbf7a', icon: '🌱', yieldPerAcre: 5000,  wholesalePerLb: 3.00,  retailPerLb: 10.00 },
+      { id: 'berries',      name: 'Berries',            color: '#c94080', icon: '🫐', yieldPerAcre: 6000,  wholesalePerLb: 2.50,  retailPerLb: 7.00 },
+      { id: 'lavender',     name: 'Lavender',           color: '#9370DB', icon: '💜', yieldPerAcre: 1500,  wholesalePerLb: 8.00,  retailPerLb: 18.00 },
+      { id: 'sunflowers',   name: 'Sunflowers',         color: '#FFD700', icon: '🌻', yieldPerAcre: 1200,  wholesalePerLb: 0.25,  retailPerLb: 0.75 },
+      { id: 'nut_trees',    name: 'Nut Trees',          color: '#8B6914', icon: '🌰', yieldPerAcre: 2000,  wholesalePerLb: 2.00,  retailPerLb: 6.00 },
+      { id: 'saffron',      name: 'Saffron',            color: '#FF6347', icon: '🌸', yieldPerAcre: 4,     wholesalePerLb: 1200,  retailPerLb: 2500 },
+      { id: 'cover_crop',   name: 'Cover Crop',         color: '#556B2F', icon: '🍀', yieldPerAcre: 0,     wholesalePerLb: 0,     retailPerLb: 0 },
+      { id: 'buildings',    name: 'Buildings',           color: '#666666', icon: '🏢', yieldPerAcre: 0,     wholesalePerLb: 0,     retailPerLb: 0 },
+      { id: 'driveway',     name: 'Driveway',            color: '#999999', icon: '🛤️', yieldPerAcre: 0,     wholesalePerLb: 0,     retailPerLb: 0 },
     ];
+
+    // Revenue calc: grapes use bottle pricing, everything else uses 2/3 wholesale + 1/3 retail
+    function calcCropRevenue(crop, acres) {
+      if (crop.bottlePrice) {
+        // Grapes: lbs → tons → bottles → revenue
+        const tons = (acres * crop.yieldPerAcre) / 2000;
+        const bottles = tons * crop.bottlesPerTon;
+        return { revenue: bottles * crop.bottlePrice, bottles: Math.round(bottles) };
+      }
+      const lbs = acres * crop.yieldPerAcre;
+      const blendedPrice = (crop.wholesalePerLb * 2/3) + (crop.retailPerLb * 1/3);
+      return { revenue: lbs * blendedPrice };
+    }
 
     let selectedCrop = CROPS[0];
     let zones = [];
@@ -834,10 +837,13 @@
       const rows = Object.entries(grouped).map(([cropId, data]) => {
         const crop = getCrop(cropId);
         const lbs = data.acres * crop.yieldPerAcre;
-        const revenue = lbs * crop.pricePerLb;
-        totalRevenue += revenue;
+        const result = calcCropRevenue(crop, data.acres);
+        totalRevenue += result.revenue;
         totalLbs += lbs;
         const hasYield = crop.yieldPerAcre > 0;
+        const volumeInfo = result.bottles
+          ? `${formatNum(lbs)} lbs / ${formatNum(result.bottles)} bottles`
+          : `${formatNum(lbs)} lbs/yr`;
         return `
           <div class="summary-crop-block">
             <div class="summary-row">
@@ -849,8 +855,8 @@
             </div>
             ${hasYield ? `
             <div class="summary-detail">
-              <span>${formatNum(lbs)} lbs/yr</span>
-              <span class="summary-revenue">$${formatNum(revenue)}/yr</span>
+              <span>${volumeInfo}</span>
+              <span class="summary-revenue">$${formatNum(result.revenue)}/yr</span>
             </div>` : ''}
           </div>`;
       }).join('');

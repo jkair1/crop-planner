@@ -980,11 +980,11 @@
       }
     }
 
-    // One-time clear for v4 (embed default layout)
-    if (!localStorage.getItem('cropPlannerV4')) {
+    // One-time clear for v5 (load user's actual layout)
+    if (!localStorage.getItem('cropPlannerV5')) {
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem('cropPlannerSuggestedSeen');
-      localStorage.setItem('cropPlannerV4', 'true');
+      localStorage.setItem('cropPlannerV5', 'true');
     }
 
     // Load saved zones on startup

@@ -519,6 +519,28 @@
       }
     });
 
+    // ── Zone Naming ────────────────────────────────────────────
+    function generateCropName(cropId) {
+      const crop = getCrop(cropId);
+      const baseName = crop.name.replace(/ \/ .*| \(.*\)/, ''); // "Orchard / Fruit" -> "Orchard", "Grapes (Vineyard)" -> "Grapes"
+      const count = zones.filter(z => z.cropId === cropId).length + 1;
+      return `${baseName} ${count}`;
+    }
+
+    function renumberAllZones() {
+      const counts = {};
+      zones.forEach(z => {
+        const crop = getCrop(z.cropId);
+        const baseName = crop.name.replace(/ \/ .*| \(.*\)/, '');
+        counts[z.cropId] = (counts[z.cropId] || 0) + 1;
+        z.name = `${baseName} ${counts[z.cropId]}`;
+        updateLayerPopup(z);
+        const label = z._label || z.layer._label;
+        if (label) map.removeLayer(label);
+        addZoneLabel(z);
+      });
+    }
+
     // ── Zone Created (with clipping to property boundary) ───────
     map.on(L.Draw.Event.CREATED, function (e) {
       let layer = e.layer;
@@ -553,7 +575,7 @@
         id: ++zoneIdCounter,
         cropId: selectedCrop.id,
         layer: layer,
-        name: `Zone ${zoneIdCounter}`,
+        name: generateCropName(selectedCrop.id),
       };
       zones.push(zone);
 
@@ -577,6 +599,7 @@
         if (label) map.removeLayer(label);
         zones = zones.filter(z => z.layer !== layer);
       });
+      renumberAllZones();
       renderZoneList();
       renderSummary();
       saveToStorage();
@@ -705,10 +728,7 @@
       z.cropId = cropId;
       const crop = getCrop(cropId);
       z.layer.setStyle({ color: crop.color, fillColor: crop.color });
-      updateLayerPopup(z);
-      const label = z._label || z.layer._label;
-      if (label) map.removeLayer(label);
-      addZoneLabel(z);
+      renumberAllZones();
       renderZoneList();
       renderSummary();
       saveToStorage();
@@ -724,10 +744,10 @@
       const z = zones.find(z => z.id === id);
       if (!z) return;
       drawnItems.removeLayer(z.layer);
-      // Remove label from both possible references
       const label = z._label || z.layer._label;
       if (label) map.removeLayer(label);
       zones = zones.filter(z => z.id !== id);
+      renumberAllZones();
       renderZoneList();
       renderSummary();
       saveToStorage();
@@ -852,13 +872,12 @@
             id: d.id,
             cropId: d.cropId,
             layer: layer,
-            name: d.name,
+            name: '',
           };
           zones.push(zone);
           if (d.id >= zoneIdCounter) zoneIdCounter = d.id;
-          updateLayerPopup(zone);
-          addZoneLabel(zone);
         });
+        renumberAllZones();
         renderZoneList();
         renderSummary();
         if (zones.length > 0) showToast(`Restored ${zones.length} saved zone(s)`);
@@ -1004,7 +1023,7 @@
           id: ++zoneIdCounter,
           cropId: sz.cropId,
           layer: layer,
-          name: sz.name,
+          name: generateCropName(sz.cropId),
         };
         zones.push(zone);
         updateLayerPopup(zone);

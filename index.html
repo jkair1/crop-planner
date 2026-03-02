@@ -409,11 +409,47 @@
       'Street Map': streets,
     }, null, { position: 'topright' }).addTo(map);
 
+    // ── Official Lot Boundaries (CT State Parcel Layer) ─────────
+    const LOT_848_COORDS = [
+      [41.945934343048,-72.0071643264488],[41.9458188378341,-72.0070030694919],[41.9454051380947,-72.006515904846],[41.9453864815969,-72.0065860457513],[41.944940170584,-72.0082639462907],[41.9448508491865,-72.0085997348238],[41.9447602170899,-72.0089182690307],[41.9445477940953,-72.0099813455408],[41.9452055779033,-72.0102145188696],[41.9462250621596,-72.0106681512026],[41.946230475986,-72.0106705602657],[41.946294651631,-72.0106976727161],[41.9470397212292,-72.0110124492905],[41.9470458140543,-72.0110150230958],[41.9470487503378,-72.0110064640782],[41.9470931692907,-72.0108769877975],[41.9471157729415,-72.0108111029673],[41.9475918443113,-72.009423394242],[41.9475992775351,-72.009401726926],[41.9475038916153,-72.009280671474],[41.9469140616848,-72.008532126415],[41.9467181218129,-72.0082585659633],[41.9466991602689,-72.0082320936218],[41.9461571264822,-72.0074753494642],[41.945934343048,-72.0071643264488]
+    ];
+
+    const LOT_818_COORDS = [
+      [41.9505913200713,-72.0083435339126],[41.9498768224766,-72.0082289896667],[41.9498622127012,-72.0083672558375],[41.949839411183,-72.0086751385326],[41.9497900178899,-72.0090715761956],[41.9497822124356,-72.0091148348896],[41.9497681896493,-72.0091988157234],[41.9497552392871,-72.009283106227],[41.9497433665802,-72.0093676798109],[41.9497431826953,-72.0093690532284],[41.9497404179538,-72.0093899102531],[41.9497378963782,-72.0094092315641],[41.9500347690835,-72.0094752788212],[41.9500215746215,-72.0096209534102],[41.9503107096269,-72.0096640496938],[41.9501938008122,-72.0103007750214],[41.9503255109919,-72.010553514571],[41.9509898503136,-72.0107986582261],[41.9511916187867,-72.0110620524499],[41.9520149962844,-72.0114789361993],[41.9521174314274,-72.0114745695692],[41.9530528290172,-72.0119886093761],[41.9541762913711,-72.0126060198718],[41.9543262902596,-72.0120052755837],[41.9547856349876,-72.0101697307999],[41.9518451663779,-72.0086548956344],[41.9512953819925,-72.0083504980561],[41.9511331540286,-72.0083026575194],[41.9511022344819,-72.0083006732157],[41.9506019732838,-72.0082685626669],[41.9505913200713,-72.0083435339126]
+    ];
+
+    // Draw lot boundaries on map
+    const lot848Layer = L.polygon(LOT_848_COORDS, {
+      color: '#ff4444',
+      weight: 3,
+      fillOpacity: 0.05,
+      dashArray: '8, 4',
+      interactive: false,
+    }).addTo(map);
+    lot848Layer.bindTooltip('848 Route 171 — 16.7 ac (Winery)', { permanent: false });
+
+    const lot818Layer = L.polygon(LOT_818_COORDS, {
+      color: '#4488ff',
+      weight: 3,
+      fillOpacity: 0.05,
+      dashArray: '8, 4',
+      interactive: false,
+    }).addTo(map);
+    lot818Layer.bindTooltip('818 Route 171 — 25.3 ac (Brewery)', { permanent: false });
+
+    // Combined property boundary for clipping (Turf multipolygon)
+    const lot848Turf = turf.polygon([LOT_848_COORDS.map(c => [c[1], c[0]])]);
+    const lot818Turf = turf.polygon([LOT_818_COORDS.map(c => [c[1], c[0]])]);
+    const propertyBoundary = turf.union(turf.featureCollection([lot848Turf, lot818Turf]));
+
+    // Fit map to show both lots
+    const combinedBounds = L.latLngBounds(LOT_848_COORDS).extend(L.latLngBounds(LOT_818_COORDS));
+    map.fitBounds(combinedBounds, { padding: [40, 40] });
+
     // Property marker
     L.marker(PROPERTY_CENTER)
       .addTo(map)
-      .bindPopup('<b>848 Route 171</b><br>Taylor Brooke Vineyard<br>Woodstock, CT 06281<br>43 Acres')
-      .openPopup();
+      .bindPopup('<b>848 Route 171</b><br>Taylor Brooke Vineyard<br>Woodstock, CT 06281<br>43 Acres');
 
     // ── Draw Controls ─────────────────────────────────────────────
     const drawnItems = new L.FeatureGroup();
@@ -459,10 +495,33 @@
       }
     });
 
-    // ── Zone Created ──────────────────────────────────────────────
+    // ── Zone Created (with clipping to property boundary) ───────
     map.on(L.Draw.Event.CREATED, function (e) {
-      const layer = e.layer;
-      layer.setStyle({
+      let layer = e.layer;
+
+      // Clip the drawn polygon to the property boundary
+      const drawnCoords = layer.getLatLngs()[0].map(ll => [ll.lng, ll.lat]);
+      drawnCoords.push(drawnCoords[0]); // close ring
+      const drawnTurf = turf.polygon([drawnCoords]);
+
+      let clipped;
+      try {
+        clipped = turf.intersect(turf.featureCollection([drawnTurf, propertyBoundary]));
+      } catch (err) {
+        clipped = null;
+      }
+
+      if (!clipped) {
+        showToast('Zone must be within the property boundary');
+        return;
+      }
+
+      // Replace layer with the clipped version
+      const clippedCoords = clipped.geometry.type === 'MultiPolygon'
+        ? clipped.geometry.coordinates[0][0]
+        : clipped.geometry.coordinates[0];
+      const clippedLatLngs = clippedCoords.map(c => L.latLng(c[1], c[0]));
+      layer = L.polygon(clippedLatLngs, {
         color: selectedCrop.color,
         fillColor: selectedCrop.color,
         fillOpacity: 0.35,
@@ -782,6 +841,12 @@
       }
     }
 
+    // Clear old suggested zones from previous version
+    if (localStorage.getItem('cropPlannerSuggestedSeen')) {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem('cropPlannerSuggestedSeen');
+    }
+
     // Load saved zones on startup
     loadFromStorage();
 
@@ -873,7 +938,22 @@
       SUGGESTED_ZONES.forEach(sz => {
         const crop = getCrop(sz.cropId);
         if (!crop) return;
-        const latlngs = sz.latlngs.map(ll => L.latLng(ll[0], ll[1]));
+
+        // Clip to property boundary
+        const coords = sz.latlngs.map(ll => [ll[1], ll[0]]);
+        coords.push(coords[0]);
+        const drawnTurf = turf.polygon([coords]);
+        let clipped;
+        try {
+          clipped = turf.intersect(turf.featureCollection([drawnTurf, propertyBoundary]));
+        } catch (err) { clipped = null; }
+        if (!clipped) return; // skip zones fully outside property
+
+        const clippedCoords = clipped.geometry.type === 'MultiPolygon'
+          ? clipped.geometry.coordinates[0][0]
+          : clipped.geometry.coordinates[0];
+        const latlngs = clippedCoords.map(c => L.latLng(c[1], c[0]));
+
         const layer = L.polygon(latlngs, {
           color: crop.color,
           fillColor: crop.color,
@@ -939,11 +1019,7 @@
       }
     });
 
-    // Auto-load suggested plan on first visit (or if no saved zones)
-    if (zones.length === 0 || !localStorage.getItem('cropPlannerSuggestedSeen')) {
-      localStorage.setItem('cropPlannerSuggestedSeen', 'true');
-      loadSuggestedPlan();
-    }
+    // Suggested plan available via button only (not auto-loaded)
   </script>
 </body>
 </html>

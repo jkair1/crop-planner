@@ -454,12 +454,20 @@
 
     let selectedYear = 5; // index into yieldByYear (0=yr1, ..., 5=maturity)
 
-    // Retail % per crop (user-adjustable, default 33%)
-    const retailPct = {};
-    CROPS.forEach(c => { retailPct[c.id] = 33; });
+    // Retail % per crop (user-adjustable, saved to localStorage)
+    const RETAIL_PCT_KEY = 'cropPlannerRetailPct';
+    const retailPct = (() => {
+      try {
+        const saved = JSON.parse(localStorage.getItem(RETAIL_PCT_KEY));
+        if (saved && typeof saved === 'object') return saved;
+      } catch(e) {}
+      return {};
+    })();
+    CROPS.forEach(c => { if (retailPct[c.id] === undefined) retailPct[c.id] = 33; });
 
     function setRetailPct(cropId, pct) {
       retailPct[cropId] = Math.max(0, Math.min(100, parseInt(pct) || 0));
+      localStorage.setItem(RETAIL_PCT_KEY, JSON.stringify(retailPct));
       renderSummary();
     }
 
@@ -500,7 +508,7 @@
       if (crop.wholesalePerLb > 0 || crop.retailPerLb > 0 || crop.retailPerTree > 0) {
         const pctWrap = document.createElement('div');
         pctWrap.className = 'retail-pct-wrap';
-        pctWrap.innerHTML = `<input type="number" min="0" max="100" value="33" class="retail-pct-input" onchange="setRetailPct('${crop.id}', this.value)" title="% of sales from retail">%<span class="retail-pct-label">retail</span>`;
+        pctWrap.innerHTML = `<input type="number" min="0" max="100" value="${retailPct[crop.id]}" class="retail-pct-input" onchange="setRetailPct('${crop.id}', this.value)" title="% of sales from retail">%<span class="retail-pct-label">retail</span>`;
         row.appendChild(pctWrap);
       }
       paletteEl.appendChild(row);

@@ -437,10 +437,32 @@
     }).addTo(map);
     lot818Layer.bindTooltip('818 Route 171 — 26.3 ac (Brewery)', { permanent: false });
 
-    // Combined property boundary for clipping (Turf multipolygon)
+    // Property boundary polygons for clipping
     const lot848Turf = turf.polygon([LOT_848_COORDS.map(c => [c[1], c[0]])]);
     const lot818Turf = turf.polygon([LOT_818_COORDS.map(c => [c[1], c[0]])]);
-    const propertyBoundary = turf.union(turf.featureCollection([lot848Turf, lot818Turf]));
+    let propertyBoundary;
+    try {
+      propertyBoundary = turf.union(turf.featureCollection([lot848Turf, lot818Turf]));
+    } catch (e) {
+      console.warn('Union failed, using individual lots for clipping:', e);
+      propertyBoundary = null;
+    }
+
+    // Clip helper: try union first, then each lot individually
+    function clipToProperty(drawnTurf) {
+      let clipped = null;
+      if (propertyBoundary) {
+        try { clipped = turf.intersect(turf.featureCollection([drawnTurf, propertyBoundary])); } catch(e) {}
+      }
+      if (!clipped) {
+        // Try each lot individually and take whichever works
+        try { clipped = turf.intersect(turf.featureCollection([drawnTurf, lot848Turf])); } catch(e) {}
+        if (!clipped) {
+          try { clipped = turf.intersect(turf.featureCollection([drawnTurf, lot818Turf])); } catch(e) {}
+        }
+      }
+      return clipped;
+    }
 
     // Fit map to show both lots
     const combinedBounds = L.latLngBounds(LOT_848_COORDS).extend(L.latLngBounds(LOT_818_COORDS));
@@ -504,12 +526,7 @@
       drawnCoords.push(drawnCoords[0]); // close ring
       const drawnTurf = turf.polygon([drawnCoords]);
 
-      let clipped;
-      try {
-        clipped = turf.intersect(turf.featureCollection([drawnTurf, propertyBoundary]));
-      } catch (err) {
-        clipped = null;
-      }
+      const clipped = clipToProperty(drawnTurf);
 
       if (!clipped) {
         showToast('Zone must be within the property boundary');
@@ -841,10 +858,11 @@
       }
     }
 
-    // Clear old suggested zones from previous version
-    if (localStorage.getItem('cropPlannerSuggestedSeen')) {
+    // One-time clear for v3 (new lot-fitted zones)
+    if (!localStorage.getItem('cropPlannerV3')) {
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem('cropPlannerSuggestedSeen');
+      localStorage.setItem('cropPlannerV3', 'true');
     }
 
     // Load saved zones on startup
@@ -944,20 +962,26 @@
         const crop = getCrop(sz.cropId);
         if (!crop) return;
 
-        // Clip to property boundary
+        // Try to clip to property boundary, fallback to raw coords
         const coords = sz.latlngs.map(ll => [ll[1], ll[0]]);
         coords.push(coords[0]);
-        const drawnTurf = turf.polygon([coords]);
-        let clipped;
+        let latlngs;
         try {
-          clipped = turf.intersect(turf.featureCollection([drawnTurf, propertyBoundary]));
-        } catch (err) { clipped = null; }
-        if (!clipped) return; // skip zones fully outside property
-
-        const clippedCoords = clipped.geometry.type === 'MultiPolygon'
-          ? clipped.geometry.coordinates[0][0]
-          : clipped.geometry.coordinates[0];
-        const latlngs = clippedCoords.map(c => L.latLng(c[1], c[0]));
+          const drawnTurf = turf.polygon([coords]);
+          const clipped = clipToProperty(drawnTurf);
+          if (clipped) {
+            const clippedCoords = clipped.geometry.type === 'MultiPolygon'
+              ? clipped.geometry.coordinates[0][0]
+              : clipped.geometry.coordinates[0];
+            latlngs = clippedCoords.map(c => L.latLng(c[1], c[0]));
+          } else {
+            // Zone didn't intersect — use raw coords (may be slightly outside)
+            latlngs = sz.latlngs.map(ll => L.latLng(ll[0], ll[1]));
+          }
+        } catch (err) {
+          console.warn('Clip failed for', sz.name, err);
+          latlngs = sz.latlngs.map(ll => L.latLng(ll[0], ll[1]));
+        }
 
         const layer = L.polygon(latlngs, {
           color: crop.color,
@@ -1024,7 +1048,10 @@
       }
     });
 
-    // Suggested plan available via button only (not auto-loaded)
+    // Auto-load suggested plan if no saved zones
+    if (zones.length === 0) {
+      loadSuggestedPlan();
+    }
   </script>
 </body>
 </html>

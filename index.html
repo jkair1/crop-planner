@@ -298,6 +298,13 @@
     .rationale-item b { color: #ccc; }
     .rationale-item .revenue { color: #3dbf7a; }
 
+    /* Zone labels — remove default Leaflet div-icon box */
+    .zone-label {
+      background: none !important;
+      border: none !important;
+      box-shadow: none !important;
+    }
+
     /* Responsive */
     @media (max-width: 768px) {
       body { flex-direction: column; }
@@ -654,12 +661,20 @@
             white-space:nowrap;
             text-align:center;
             border:1px solid ${crop.color};
+            cursor:grab;
           ">${crop.icon} ${zone.name}<br>${acres} ac</div>`,
           iconSize: [0, 0],
           iconAnchor: [40, 12],
         }),
-        interactive: false,
+        draggable: true,
       });
+      label.on('dragend', function () {
+        zone._labelPos = [label.getLatLng().lat, label.getLatLng().lng];
+        saveToStorage();
+      });
+      if (zone._labelPos) {
+        label.setLatLng(L.latLng(zone._labelPos[0], zone._labelPos[1]));
+      }
       label.addTo(map);
       zone.layer._label = label;
       zone._label = label; // store on zone too for reliable cleanup
@@ -848,6 +863,7 @@
         cropId: z.cropId,
         name: z.name,
         latlngs: z.layer.getLatLngs()[0].map(ll => [ll.lat, ll.lng]),
+        labelPos: z._labelPos || null,
       }));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
@@ -873,6 +889,7 @@
             cropId: d.cropId,
             layer: layer,
             name: '',
+            _labelPos: d.labelPos || null,
           };
           zones.push(zone);
           if (d.id >= zoneIdCounter) zoneIdCounter = d.id;

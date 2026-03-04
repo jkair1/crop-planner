@@ -59,6 +59,35 @@
       color: #5c7a99;
       padding: 14px 20px 6px;
       border-top: 1px solid #0f3460;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      user-select: none;
+    }
+
+    .section-title:hover {
+      color: #8ab4f8;
+    }
+
+    .section-title::after {
+      content: '\25B2';
+      font-size: 0.6rem;
+      transition: transform 0.2s;
+    }
+
+    .section-title.collapsed::after {
+      transform: rotate(180deg);
+    }
+
+    .section-content {
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+      max-height: 2000px;
+    }
+
+    .section-content.collapsed {
+      max-height: 0;
     }
 
     /* Crop Palette */
@@ -379,23 +408,32 @@
     <h1>Crop Planner</h1>
     <div class="subtitle">848 Route 171, Woodstock, CT 06281 &mdash; 43 Acres</div>
 
-    <div class="section-title">1. Select a Crop</div>
-    <div id="crop-palette"></div>
+    <div class="section-title" onclick="toggleSection(this)">1. Select a Crop</div>
+    <div class="section-content">
+      <div id="crop-palette"></div>
+    </div>
 
-    <div class="section-title">Planned Zones</div>
-    <div id="zone-list"><p style="font-size:0.78rem;color:#556;padding:8px;">No zones yet. Draw polygons on the map to add crop zones.</p></div>
+    <div class="section-title" onclick="toggleSection(this)">Planned Zones</div>
+    <div class="section-content">
+      <div id="zone-list"><p style="font-size:0.78rem;color:#556;padding:8px;">No zones yet. Draw polygons on the map to add crop zones.</p></div>
+    </div>
 
-    <div class="section-title">Projection Year</div>
-    <select id="year-select" onchange="changeYear(this.value)" style="width:100%;padding:8px;margin-bottom:12px;background:#0a1628;color:#e0e0e0;border:1px solid #1a3a5c;border-radius:6px;font-size:0.85rem;">
-      <option value="0">Year 1</option>
-      <option value="1">Year 2</option>
-      <option value="2">Year 3</option>
-      <option value="3">Year 4</option>
-      <option value="4">Year 5</option>
-      <option value="5" selected>Maturity (Year 6+)</option>
-    </select>
+    <div class="section-title" onclick="toggleSection(this)">Projection Year</div>
+    <div class="section-content">
+      <select id="year-select" onchange="changeYear(this.value)" style="width:100%;padding:8px;margin-bottom:12px;background:#0a1628;color:#e0e0e0;border:1px solid #1a3a5c;border-radius:6px;font-size:0.85rem;">
+        <option value="0">Year 1</option>
+        <option value="1">Year 2</option>
+        <option value="2">Year 3</option>
+        <option value="3">Year 4</option>
+        <option value="4">Year 5</option>
+        <option value="5" selected>Maturity (Year 6+)</option>
+      </select>
+    </div>
 
-    <div id="summary"></div>
+    <div class="section-title" onclick="toggleSection(this)">Revenue Summary</div>
+    <div class="section-content">
+      <div id="summary"></div>
+    </div>
 
     <div id="rationale-panel"></div>
 
@@ -409,6 +447,13 @@
   <div id="toast"></div>
 
   <script>
+    // ── Collapsible Sections ─────────────────────────────────────
+    function toggleSection(titleEl) {
+      titleEl.classList.toggle('collapsed');
+      const content = titleEl.nextElementSibling;
+      if (content) content.classList.toggle('collapsed');
+    }
+
     // ── Crop Definitions ──────────────────────────────────────────
     // yieldPerAcre: lbs at maturity (midpoints from yield table)
     // wholesalePerLb / retailPerLb: $/lb from pricing table

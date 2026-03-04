@@ -287,6 +287,8 @@
         yieldByYear: [0.52, 0.78, 1.0, 1.0, 1.0, 1.0], isTree: false },
       { id: 'christmas_trees', name: 'Christmas Trees', color: '#228B22', icon: '🎄', yieldPerAcre: 0,
         treesPerAcrePerYear: 118, yieldByYear: [0, 0, 0, 0, 0, 1.0], isTree: true },
+      { id: 'brewery',      name: 'Brewery',       color: '#D4881C', icon: '🍺', yieldPerAcre: 0,
+        yieldByYear: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0], isTree: false, isFixedRevenue: true },
     ];
 
     function getCrop(id) { return CROPS.find(c => c.id === id); }
@@ -317,6 +319,8 @@
       { cropId: 'raspberries',  product: 'Jam',           percentOfCrop: 0.25, pctRetail: 0.75, unit: '8 oz',    lbsPerUnit: 0.5,    retailPerUnit: 9,     wholesalePerUnit: 4.50  },
       { cropId: 'sunflowers',   product: 'Dried Bouquet', percentOfCrop: 1.00, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 0.75,  wholesalePerUnit: 0.25  },
       { cropId: 'christmas_trees', product: 'Tree',       percentOfCrop: 1.00, pctRetail: 0.75, unit: '1 tree',  lbsPerUnit: 0,      retailPerUnit: 60,    wholesalePerUnit: 15    },
+      { cropId: 'brewery',    product: 'Bottled Beer',    percentOfCrop: 0.50, pctRetail: 0.75, unit: '6-pack',  lbsPerUnit: 0,      retailPerUnit: 12,    wholesalePerUnit: 7     , fixedUnitsPerYear: 5000 },
+      { cropId: 'brewery',    product: 'Pint',            percentOfCrop: 0.50, pctRetail: 1.00, unit: 'pint',    lbsPerUnit: 0,      retailPerUnit: 8,     wholesalePerUnit: 4     , fixedUnitsPerYear: 10000 },
     ];
 
     // ── Persistence ───────────────────────────────────────────────
@@ -403,24 +407,21 @@
 
         // Calculate yield for this product row
         let productYield = 0;
-        if (crop.isTree) {
+        let units = 0;
+        if (p.fixedUnitsPerYear) {
+          // Fixed-revenue products (e.g., brewery): units are set directly
+          units = p.fixedUnitsPerYear;
+        } else if (crop.isTree) {
           productYield = (yields[p.cropId]?.trees || 0) * p.percentOfCrop;
+          units = productYield;
         } else {
           productYield = (yields[p.cropId]?.totalLbs || 0) * p.percentOfCrop;
+          if (p.lbsPerUnit > 0) units = productYield / p.lbsPerUnit;
         }
 
         // Calculate sales
-        let retailSales = 0;
-        let wholesaleSales = 0;
-        if (crop.isTree) {
-          // For trees, yield is tree count — units = trees
-          retailSales = productYield * p.retailPerUnit * p.pctRetail;
-          wholesaleSales = productYield * p.wholesalePerUnit * (1 - p.pctRetail);
-        } else if (p.lbsPerUnit > 0) {
-          const units = productYield / p.lbsPerUnit;
-          retailSales = units * p.retailPerUnit * p.pctRetail;
-          wholesaleSales = units * p.wholesalePerUnit * (1 - p.pctRetail);
-        }
+        let retailSales = units * p.retailPerUnit * p.pctRetail;
+        let wholesaleSales = units * p.wholesalePerUnit * (1 - p.pctRetail);
         const rowTotal = retailSales + wholesaleSales;
 
         totalYield += productYield;
@@ -433,7 +434,9 @@
           `<option value="${c.id}" ${c.id === p.cropId ? 'selected' : ''}>${c.icon} ${c.name}</option>`
         ).join('');
 
-        const yieldDisplay = crop.isTree
+        const yieldDisplay = p.fixedUnitsPerYear
+          ? `${Math.round(units).toLocaleString()} ${esc(p.unit)}s`
+          : crop.isTree
           ? `${Math.round(productYield).toLocaleString()} trees`
           : `${Math.round(productYield).toLocaleString()}`;
 
@@ -449,7 +452,10 @@
             <td class="editable"><input type="number" step="1" min="0" max="100" value="${Math.round(p.pctRetail * 100)}" onchange="updateField(${i}, 'pctRetail', parseFloat(this.value) / 100)" style="text-align:right">%</td>
             <td class="calc">${yieldDisplay}</td>
             <td class="editable"><input type="text" value="${esc(p.unit)}" onchange="updateField(${i}, 'unit', this.value)"></td>
-            <td class="editable"><input type="number" step="0.0001" min="0" value="${p.lbsPerUnit}" onchange="updateField(${i}, 'lbsPerUnit', parseFloat(this.value))"></td>
+            ${p.fixedUnitsPerYear !== undefined
+              ? `<td class="editable"><input type="number" step="1" min="0" value="${p.fixedUnitsPerYear}" onchange="updateField(${i}, 'fixedUnitsPerYear', parseFloat(this.value))" title="Units per year"></td>`
+              : `<td class="editable"><input type="number" step="0.0001" min="0" value="${p.lbsPerUnit}" onchange="updateField(${i}, 'lbsPerUnit', parseFloat(this.value))"></td>`
+            }
             <td class="editable currency"><input type="number" step="0.01" min="0" value="${p.retailPerUnit}" onchange="updateField(${i}, 'retailPerUnit', parseFloat(this.value))" style="text-align:right"></td>
             <td class="editable currency"><input type="number" step="0.01" min="0" value="${p.wholesalePerUnit}" onchange="updateField(${i}, 'wholesalePerUnit', parseFloat(this.value))" style="text-align:right"></td>
             <td class="calc currency">$${formatNum(retailSales)}</td>

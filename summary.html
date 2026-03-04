@@ -185,6 +185,8 @@
         yieldByYear: [0.52, 0.78, 1.0, 1.0, 1.0, 1.0], isTree: false },
       { id: 'christmas_trees', name: 'Christmas Trees', color: '#228B22', icon: '🎄', yieldPerAcre: 0,
         treesPerAcrePerYear: 118, yieldByYear: [0, 0, 0, 0, 0, 1.0], isTree: true },
+      { id: 'brewery',      name: 'Brewery',       color: '#D4881C', icon: '🍺', yieldPerAcre: 0,
+        yieldByYear: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0], isTree: false, isFixedRevenue: true },
     ];
 
     function getCrop(id) { return CROPS.find(c => c.id === id); }
@@ -216,6 +218,8 @@
       { cropId: 'raspberries',  product: 'Jam',           percentOfCrop: 0.25, pctRetail: 0.75, unit: '8 oz',    lbsPerUnit: 0.5,    retailPerUnit: 9,     wholesalePerUnit: 4.50  },
       { cropId: 'sunflowers',   product: 'Dried Bouquet', percentOfCrop: 1.00, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 0.75,  wholesalePerUnit: 0.25  },
       { cropId: 'christmas_trees', product: 'Tree',       percentOfCrop: 1.00, pctRetail: 0.75, unit: '1 tree',  lbsPerUnit: 0,      retailPerUnit: 60,    wholesalePerUnit: 15    },
+      { cropId: 'brewery',    product: 'Bottled Beer',    percentOfCrop: 0.50, pctRetail: 0.75, unit: '6-pack',  lbsPerUnit: 0,      retailPerUnit: 12,    wholesalePerUnit: 7     , fixedUnitsPerYear: 5000 },
+      { cropId: 'brewery',    product: 'Pint',            percentOfCrop: 0.50, pctRetail: 1.00, unit: 'pint',    lbsPerUnit: 0,      retailPerUnit: 8,     wholesalePerUnit: 4     , fixedUnitsPerYear: 10000 },
     ];
 
     function loadProducts() {
@@ -270,12 +274,18 @@
       if (!crop) return 0;
       const cropProducts = products.filter(p => p.cropId === cropId);
       const y = yields[cropId];
-      if (!y) return 0;
 
       if (cropProducts.length > 0) {
         let revenue = 0;
         cropProducts.forEach(p => {
-          if (crop.isTree) {
+          if (p.fixedUnitsPerYear) {
+            // Fixed-unit products (brewery etc.) — not tied to acreage
+            const units = p.fixedUnitsPerYear;
+            revenue += units * p.retailPerUnit * p.pctRetail;
+            revenue += units * p.wholesalePerUnit * (1 - p.pctRetail);
+          } else if (!y) {
+            return;
+          } else if (crop.isTree) {
             const productTrees = y.trees * p.percentOfCrop;
             revenue += productTrees * p.retailPerUnit * p.pctRetail;
             revenue += productTrees * p.wholesalePerUnit * (1 - p.pctRetail);
@@ -288,6 +298,8 @@
         });
         return revenue;
       }
+
+      if (!y) return 0;
 
       // Fallback: 33% retail blend
       if (crop.isTree) {
@@ -321,9 +333,10 @@
         yearData.push({ yields, revenues });
       }
 
-      // Find which crops have any zones (acres > 0 in any year)
+      // Find which crops have zones or fixed-revenue products
       const activeCrops = CROPS.filter(c => {
         if (isNoCalc(c.id)) return false;
+        if (c.isFixedRevenue) return products.some(p => p.cropId === c.id);
         return yearData.some(yd => yd.yields[c.id] && yd.yields[c.id].acres > 0);
       });
 

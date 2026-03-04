@@ -493,6 +493,8 @@
       { id: 'christmas_trees', name: 'Christmas Trees',  color: '#228B22', icon: '🎄', yieldPerAcre: 0,    wholesalePerLb: 0,      retailPerLb: 0,
         treesPerAcrePerYear: 118, wholesalePerTree: 15, retailPerTree: 60,
         yieldByYear: [0, 0, 0, 0, 0, 1.0] },
+      { id: 'brewery',      name: 'Brewery',             color: '#D4881C', icon: '🍺', yieldPerAcre: 0,     wholesalePerLb: 0,      retailPerLb: 0,
+        yieldByYear: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0], noCalc: true },
       { id: 'buildings',    name: 'Buildings',           color: '#666666', icon: '🏢', yieldPerAcre: 0,     wholesalePerLb: 0,      retailPerLb: 0,
         yieldByYear: [0, 0, 0, 0, 0, 0], noCalc: true },
       { id: 'driveway',     name: 'Driveway',            color: '#999999', icon: '🛤️', yieldPerAcre: 0,     wholesalePerLb: 0,      retailPerLb: 0,
@@ -540,10 +542,15 @@
       if (products.length > 0) {
         let revenue = 0;
         products.forEach(p => {
-          const productLbs = totalLbs * p.percentOfCrop;
-          const units = productLbs / p.lbsPerUnit;
-          revenue += units * p.retailPerUnit * p.pctRetail;
-          revenue += units * p.wholesalePerUnit * (1 - p.pctRetail);
+          if (p.fixedUnitsPerYear) {
+            revenue += p.fixedUnitsPerYear * p.retailPerUnit * p.pctRetail;
+            revenue += p.fixedUnitsPerYear * p.wholesalePerUnit * (1 - p.pctRetail);
+          } else if (p.lbsPerUnit > 0) {
+            const productLbs = totalLbs * p.percentOfCrop;
+            const units = productLbs / p.lbsPerUnit;
+            revenue += units * p.retailPerUnit * p.pctRetail;
+            revenue += units * p.wholesalePerUnit * (1 - p.pctRetail);
+          }
         });
         return { revenue };
       }

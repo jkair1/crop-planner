@@ -90,6 +90,15 @@
       max-height: 0;
     }
 
+    .section-content.scrollable {
+      overflow-y: auto;
+      max-height: 40vh;
+    }
+
+    .section-content.scrollable.collapsed {
+      max-height: 0;
+    }
+
     /* Crop Palette */
     #crop-palette {
       padding: 8px 20px;
@@ -409,12 +418,12 @@
     <div class="subtitle">848 Route 171, Woodstock, CT 06281 &mdash; 43 Acres</div>
 
     <div class="section-title" onclick="toggleSection(this)">1. Select a Crop</div>
-    <div class="section-content">
+    <div class="section-content scrollable">
       <div id="crop-palette"></div>
     </div>
 
     <div class="section-title" onclick="toggleSection(this)">Planned Zones</div>
-    <div class="section-content">
+    <div class="section-content scrollable">
       <div id="zone-list"><p style="font-size:0.78rem;color:#556;padding:8px;">No zones yet. Draw polygons on the map to add crop zones.</p></div>
     </div>
 
@@ -431,7 +440,7 @@
     </div>
 
     <div class="section-title" onclick="toggleSection(this)">Revenue Summary</div>
-    <div class="section-content">
+    <div class="section-content scrollable">
       <div id="summary"></div>
     </div>
 

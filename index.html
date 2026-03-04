@@ -765,6 +765,7 @@
         cropId: selectedCrop.id,
         layer: layer,
         name: generateCropName(selectedCrop.id),
+        plantYear: selectedYear,
       };
       zones.push(zone);
 
@@ -819,6 +820,31 @@
       return CROPS.find(c => c.id === id);
     }
 
+    function isZoneVisibleInYear(zone, year) {
+      if (zone.mature) return true;
+      const crop = getCrop(zone.cropId);
+      if (crop && crop.noCalc) return true;
+      return year >= zone.plantYear;
+    }
+
+    function getZoneYieldIndex(zone, viewingYear) {
+      if (zone.mature) return 5;
+      return Math.min(Math.max(viewingYear - zone.plantYear, 0), 5);
+    }
+
+    function updateZoneVisibility() {
+      zones.forEach(z => {
+        const visible = isZoneVisibleInYear(z, selectedYear);
+        if (visible) {
+          if (!drawnItems.hasLayer(z.layer)) drawnItems.addLayer(z.layer);
+          if (z._label && !map.hasLayer(z._label)) z._label.addTo(map);
+        } else {
+          if (drawnItems.hasLayer(z.layer)) drawnItems.removeLayer(z.layer);
+          if (z._label && map.hasLayer(z._label)) map.removeLayer(z._label);
+        }
+      });
+    }
+
     function updateLayerPopup(zone) {
       const crop = getCrop(zone.cropId);
       const acres = calcAcres(zone.layer).toFixed(2);
@@ -831,6 +857,7 @@
       const crop = getCrop(zone.cropId);
       const center = zone.layer.getBounds().getCenter();
       const acres = calcAcres(zone.layer).toFixed(1);
+      const yearTag = zone.mature ? '' : (crop && crop.noCalc) ? '' : ` [Y${zone.plantYear + 1}]`;
       const label = L.marker(center, {
         icon: L.divIcon({
           className: 'zone-label',
@@ -845,7 +872,7 @@
             border:1px solid ${crop.color};
             cursor:grab;
             transform:translate(-50%,-50%);
-          ">${crop.icon} ${zone.name}<br>${acres} ac</div>`,
+          ">${crop.icon} ${zone.name}${yearTag}<br>${acres} ac</div>`,
         }),
         draggable: true,
       });
@@ -871,18 +898,27 @@
     // ── Render Zone List ──────────────────────────────────────────
     function renderZoneList() {
       const el = document.getElementById('zone-list');
+      const visibleZones = zones.filter(z => isZoneVisibleInYear(z, selectedYear));
 
-      if (zones.length === 0) {
-        el.innerHTML = '<p style="font-size:0.78rem;color:#556;padding:8px;">No zones yet. Draw polygons on the map to add crop zones.</p>';
+      if (visibleZones.length === 0) {
+        el.innerHTML = '<p style="font-size:0.78rem;color:#556;padding:8px;">No zones visible in this year. Draw polygons on the map to add crop zones.</p>';
         return;
       }
 
-      el.innerHTML = zones.map(z => {
+      const yearLabels = ['Yr 1','Yr 2','Yr 3','Yr 4','Yr 5','Maturity'];
+
+      el.innerHTML = visibleZones.map(z => {
         const crop = getCrop(z.cropId);
         const acres = calcAcres(z.layer).toFixed(2);
         const options = CROPS.map(c =>
           `<option value="${c.id}" ${c.id === z.cropId ? 'selected' : ''}>${c.icon} ${c.name}</option>`
         ).join('');
+        const plantBadge = z.mature ? '<span style="color:#5c7a99;font-size:0.7rem;margin-left:4px;">(mature)</span>'
+          : (crop && crop.noCalc) ? ''
+          : `<span style="color:#5c7a99;font-size:0.7rem;margin-left:4px;">(planted ${yearLabels[z.plantYear]})</span>`;
+        const yi = getZoneYieldIndex(z, selectedYear);
+        const ym = crop.yieldByYear ? crop.yieldByYear[yi] : 1;
+        const yieldPct = (crop && !crop.noCalc) ? `<span style="color:#5c7a99;font-size:0.7rem;margin-left:6px;">${Math.round(ym * 100)}% yield</span>` : '';
 
         return `
           <div class="zone-card" data-id="${z.id}">
@@ -891,14 +927,14 @@
                 <span class="crop-swatch" style="background:${crop.color}"></span>
                 <span contenteditable="true"
                       onblur="renameZone(${z.id}, this.textContent)"
-                      style="outline:none;cursor:text;">${z.name}</span>
+                      style="outline:none;cursor:text;">${z.name}</span>${plantBadge}
               </div>
               <div class="zone-actions">
                 <button onclick="zoomToZone(${z.id})" title="Zoom to zone">Zoom</button>
                 <button onclick="deleteZone(${z.id})" title="Delete zone">Del</button>
               </div>
             </div>
-            <div class="zone-detail">${acres} acres</div>
+            <div class="zone-detail">${acres} acres${yieldPct}</div>
             <select class="zone-crop-select" onchange="changeCrop(${z.id}, this.value)">
               ${options}
             </select>
@@ -939,9 +975,9 @@
     function deleteZone(id) {
       const z = zones.find(z => z.id === id);
       if (!z) return;
-      drawnItems.removeLayer(z.layer);
+      if (drawnItems.hasLayer(z.layer)) drawnItems.removeLayer(z.layer);
       const label = z._label || z.layer._label;
-      if (label) map.removeLayer(label);
+      if (label && map.hasLayer(label)) map.removeLayer(label);
       zones = zones.filter(z => z.id !== id);
       renumberAllZones();
       renderZoneList();
@@ -958,6 +994,8 @@
 
     function changeYear(val) {
       selectedYear = parseInt(val);
+      updateZoneVisibility();
+      renderZoneList();
       renderSummary();
     }
 
@@ -976,14 +1014,15 @@
       let totalLbs = 0;
 
       zones.forEach(z => {
+        if (!isZoneVisibleInYear(z, selectedYear)) return;
         const acres = calcAcres(z.layer);
         const crop = getCrop(z.cropId);
         totalAcres += acres;
         if (crop.noCalc) return;
-        const yi = z.mature ? 5 : selectedYear;
+        const yi = getZoneYieldIndex(z, selectedYear);
         const ym = crop.yieldByYear ? crop.yieldByYear[yi] : 1;
         const lbs = acres * crop.yieldPerAcre * ym;
-        const result = calcCropRevenue(crop, acres, z.mature ? 5 : undefined);
+        const result = calcCropRevenue(crop, acres, yi);
         if (!grouped[z.cropId]) grouped[z.cropId] = { acres: 0, lbs: 0, revenue: 0, trees: 0 };
         grouped[z.cropId].acres += acres;
         grouped[z.cropId].lbs += lbs;
@@ -1063,6 +1102,7 @@
             name: z.name,
             crop: crop.name,
             cropId: z.cropId,
+            plantYear: z.plantYear || 0,
             acres: parseFloat(calcAcres(z.layer).toFixed(2)),
             coordinates: latlngs,
           };
@@ -1091,6 +1131,7 @@
         latlngs: z.layer.getLatLngs()[0].map(ll => [ll.lat, ll.lng]),
         labelPos: z._labelPos || null,
         mature: z.mature || false,
+        plantYear: z.plantYear || 0,
       }));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
@@ -1118,6 +1159,7 @@
             name: '',
             _labelPos: d.labelPos || null,
             mature: d.mature || false,
+            plantYear: d.plantYear || 0,
           };
           zones.push(zone);
           if (d.id >= zoneIdCounter) zoneIdCounter = d.id;
@@ -1131,11 +1173,11 @@
       }
     }
 
-    // One-time clear for v6 (mature grape zones)
-    if (!localStorage.getItem('cropPlannerV6')) {
+    // One-time clear for v7 (per-year zone planting)
+    if (!localStorage.getItem('cropPlannerV7')) {
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem('cropPlannerSuggestedSeen');
-      localStorage.setItem('cropPlannerV6', 'true');
+      localStorage.setItem('cropPlannerV7', 'true');
     }
 
     // Load saved zones on startup
@@ -1269,12 +1311,14 @@
           cropId: sz.cropId,
           layer: layer,
           name: generateCropName(sz.cropId),
+          plantYear: 0,
         };
         zones.push(zone);
         updateLayerPopup(zone);
         addZoneLabel(zone);
       });
 
+      updateZoneVisibility();
       renderZoneList();
       renderSummary();
       saveToStorage();
@@ -1324,23 +1368,23 @@
 
     // ── Default Layout (exported from local planning session) ──
     const DEFAULT_ZONES = [
-      { cropId: 'grapes', mature: true, latlngs: [[41.94704703707862,-72.01093375682832],[41.946601922792325,-72.01052069664003],[41.946629867278425,-72.00966238975526],[41.946829470394235,-72.00976699590684],[41.94730053126975,-72.01025247573854]] },
-      { cropId: 'grapes', mature: true, latlngs: [[41.94644373931619,-72.01064944267274],[41.94639184225219,-72.01062530279161],[41.944672916374834,-72.00994133949281],[41.94499459772672,-72.00825423002244],[41.945765082066565,-72.00875848531724],[41.94560140482512,-72.00903207063676],[41.94553553459716,-72.00938880443574],[41.94649164426082,-72.00979650020601]] },
-      { cropId: 'buildings', latlngs: [[41.94710911711775,-72.00999766588212],[41.946839653945766,-72.00975090265275],[41.94658615792202,-72.00963824987413],[41.9465083124841,-72.00969725847246],[41.94632866880304,-72.00953900814058],[41.94641050654276,-72.00930565595628],[41.946953427423956,-72.0095604658127],[41.94722688214637,-72.00975090265275]] },
-      { cropId: 'buildings', latlngs: [[41.94486331856184,-72.00795650482179],[41.94454194732781,-72.00778484344484],[41.94444813057512,-72.007454931736],[41.94460183028923,-72.00713843107225],[41.94510484494482,-72.00757831335069],[41.94503498203551,-72.007814347744]] },
-      { cropId: 'driveway', latlngs: [[41.94633096559289,-72.00949877500535],[41.9462650961187,-72.00921714305879],[41.94598564910782,-72.00892746448518],[41.94578604335008,-72.00863510370256],[41.9456363386217,-72.00834810733797],[41.94558244483342,-72.00806111097337],[41.94555849202403,-72.00782775878908],[41.94593774378294,-72.00717866420747],[41.94597966094419,-72.00726985931398],[41.94565430320765,-72.00781702995302],[41.94567226778858,-72.00816839933397],[41.945784047289386,-72.00848221778871],[41.946021578077826,-72.00883626937868],[41.94609543200817,-72.00875580310823],[41.946748137348976,-72.00928151607515],[41.94668027227313,-72.00943171977998],[41.94641080728853,-72.00929224491121]] },
-      { cropId: 'grapes', latlngs: [[41.94730437675305,-72.01012372970582],[41.94713645661596,-72.00996547937395],[41.94727018970994,-72.00972676277162],[41.94741589858257,-72.0098850131035]] },
-      { cropId: 'saffron', latlngs: [[41.947071519729484,-72.00937271118165],[41.946800060369654,-72.0092010498047],[41.946935790194054,-72.00873434543611],[41.94735495400403,-72.00924396514894]] },
-      { cropId: 'lavender', latlngs: [[41.94553057331559,-72.0083373785019],[41.94504752286021,-72.00804233551027],[41.945151732531485,-72.0075809955597],[41.94552658117808,-72.00787067413331]] },
-      { cropId: 'lavender', latlngs: [[41.94582998291756,-72.00813353061677],[41.94569824286593,-72.00807452201845],[41.945686266484095,-72.0078331232071],[41.94596970691728,-72.00732350349428],[41.94603757274952,-72.00740933418275]] },
-      { cropId: 'driveway', latlngs: [[41.94555896884915,-72.00786262750627],[41.9446003985159,-72.00712502002717],[41.944432726078375,-72.00742006301881],[41.943913737167506,-72.0069855451584],[41.94407741874163,-72.00666904449464],[41.94460838290669,-72.00696945190431],[41.9455968700663,-72.00775265693666]] },
-      { cropId: 'nut_trees', latlngs: [[41.94458123371353,-72.00568735599519],[41.94530356571044,-72.00650811195375],[41.94529025720063,-72.00674951076509],[41.94167238697456,-72.00391709804536],[41.94262601375538,-72.00426042079927],[41.94366743623766,-72.00479686260225]] },
-      { cropId: 'christmas_trees', latlngs: [[41.94359356983448,-72.00780093669893],[41.9419527304015,-72.0068943500519],[41.94145368327048,-72.00687289237977],[41.9414249289947,-72.00539767742158],[41.94165729497164,-72.00412631034852],[41.944188413603996,-72.0060306787491],[41.94364147692072,-72.00766682624818],[41.94360820641276,-72.00773656368257]] },
-      { cropId: 'lavender', latlngs: [[41.94555466174632,-72.00766146183015],[41.94518738418639,-72.00736105442049],[41.94543888970034,-72.00662076473238],[41.945838102764604,-72.00715184211732]] },
-      { cropId: 'grapes', latlngs: [[41.94483607323619,-72.00853049755098],[41.94360646966619,-72.0078331232071],[41.94388991934554,-72.0070391893387],[41.94438495519998,-72.00757026672365],[41.94445681492391,-72.00794577598573],[41.944939869854785,-72.00812816619874]] },
-      { cropId: 'orchard', latlngs: [[41.946723701599375,-72.00913131237031],[41.94582548116669,-72.0083910226822],[41.94607698416348,-72.00746834278108],[41.94687939185417,-72.00861632823946]] },
-      { cropId: 'herbs', latlngs: [[41.94622496302905,-72.00964629650117],[41.945578240533905,-72.00936734676363],[41.94566207530152,-72.00908303260805],[41.94627286813808,-72.00943171977998]] },
-      { cropId: 'orchard', latlngs: [[41.9451111787819,-72.00731277465822],[41.94405723886426,-72.00658321380617],[41.94424088116388,-72.00607895851137],[41.94525090435694,-72.00682997703554]] },
+      { cropId: 'grapes', mature: true, plantYear: 0, latlngs: [[41.94704703707862,-72.01093375682832],[41.946601922792325,-72.01052069664003],[41.946629867278425,-72.00966238975526],[41.946829470394235,-72.00976699590684],[41.94730053126975,-72.01025247573854]] },
+      { cropId: 'grapes', mature: true, plantYear: 0, latlngs: [[41.94644373931619,-72.01064944267274],[41.94639184225219,-72.01062530279161],[41.944672916374834,-72.00994133949281],[41.94499459772672,-72.00825423002244],[41.945765082066565,-72.00875848531724],[41.94560140482512,-72.00903207063676],[41.94553553459716,-72.00938880443574],[41.94649164426082,-72.00979650020601]] },
+      { cropId: 'buildings', plantYear: 0, latlngs: [[41.94710911711775,-72.00999766588212],[41.946839653945766,-72.00975090265275],[41.94658615792202,-72.00963824987413],[41.9465083124841,-72.00969725847246],[41.94632866880304,-72.00953900814058],[41.94641050654276,-72.00930565595628],[41.946953427423956,-72.0095604658127],[41.94722688214637,-72.00975090265275]] },
+      { cropId: 'buildings', plantYear: 0, latlngs: [[41.94486331856184,-72.00795650482179],[41.94454194732781,-72.00778484344484],[41.94444813057512,-72.007454931736],[41.94460183028923,-72.00713843107225],[41.94510484494482,-72.00757831335069],[41.94503498203551,-72.007814347744]] },
+      { cropId: 'driveway', plantYear: 0, latlngs: [[41.94633096559289,-72.00949877500535],[41.9462650961187,-72.00921714305879],[41.94598564910782,-72.00892746448518],[41.94578604335008,-72.00863510370256],[41.9456363386217,-72.00834810733797],[41.94558244483342,-72.00806111097337],[41.94555849202403,-72.00782775878908],[41.94593774378294,-72.00717866420747],[41.94597966094419,-72.00726985931398],[41.94565430320765,-72.00781702995302],[41.94567226778858,-72.00816839933397],[41.945784047289386,-72.00848221778871],[41.946021578077826,-72.00883626937868],[41.94609543200817,-72.00875580310823],[41.946748137348976,-72.00928151607515],[41.94668027227313,-72.00943171977998],[41.94641080728853,-72.00929224491121]] },
+      { cropId: 'grapes', plantYear: 0, latlngs: [[41.94730437675305,-72.01012372970582],[41.94713645661596,-72.00996547937395],[41.94727018970994,-72.00972676277162],[41.94741589858257,-72.0098850131035]] },
+      { cropId: 'saffron', plantYear: 0, latlngs: [[41.947071519729484,-72.00937271118165],[41.946800060369654,-72.0092010498047],[41.946935790194054,-72.00873434543611],[41.94735495400403,-72.00924396514894]] },
+      { cropId: 'lavender', plantYear: 0, latlngs: [[41.94553057331559,-72.0083373785019],[41.94504752286021,-72.00804233551027],[41.945151732531485,-72.0075809955597],[41.94552658117808,-72.00787067413331]] },
+      { cropId: 'lavender', plantYear: 0, latlngs: [[41.94582998291756,-72.00813353061677],[41.94569824286593,-72.00807452201845],[41.945686266484095,-72.0078331232071],[41.94596970691728,-72.00732350349428],[41.94603757274952,-72.00740933418275]] },
+      { cropId: 'driveway', plantYear: 0, latlngs: [[41.94555896884915,-72.00786262750627],[41.9446003985159,-72.00712502002717],[41.944432726078375,-72.00742006301881],[41.943913737167506,-72.0069855451584],[41.94407741874163,-72.00666904449464],[41.94460838290669,-72.00696945190431],[41.9455968700663,-72.00775265693666]] },
+      { cropId: 'nut_trees', plantYear: 0, latlngs: [[41.94458123371353,-72.00568735599519],[41.94530356571044,-72.00650811195375],[41.94529025720063,-72.00674951076509],[41.94167238697456,-72.00391709804536],[41.94262601375538,-72.00426042079927],[41.94366743623766,-72.00479686260225]] },
+      { cropId: 'christmas_trees', plantYear: 0, latlngs: [[41.94359356983448,-72.00780093669893],[41.9419527304015,-72.0068943500519],[41.94145368327048,-72.00687289237977],[41.9414249289947,-72.00539767742158],[41.94165729497164,-72.00412631034852],[41.944188413603996,-72.0060306787491],[41.94364147692072,-72.00766682624818],[41.94360820641276,-72.00773656368257]] },
+      { cropId: 'lavender', plantYear: 0, latlngs: [[41.94555466174632,-72.00766146183015],[41.94518738418639,-72.00736105442049],[41.94543888970034,-72.00662076473238],[41.945838102764604,-72.00715184211732]] },
+      { cropId: 'grapes', plantYear: 0, latlngs: [[41.94483607323619,-72.00853049755098],[41.94360646966619,-72.0078331232071],[41.94388991934554,-72.0070391893387],[41.94438495519998,-72.00757026672365],[41.94445681492391,-72.00794577598573],[41.944939869854785,-72.00812816619874]] },
+      { cropId: 'orchard', plantYear: 0, latlngs: [[41.946723701599375,-72.00913131237031],[41.94582548116669,-72.0083910226822],[41.94607698416348,-72.00746834278108],[41.94687939185417,-72.00861632823946]] },
+      { cropId: 'herbs', plantYear: 0, latlngs: [[41.94622496302905,-72.00964629650117],[41.945578240533905,-72.00936734676363],[41.94566207530152,-72.00908303260805],[41.94627286813808,-72.00943171977998]] },
+      { cropId: 'orchard', plantYear: 0, latlngs: [[41.9451111787819,-72.00731277465822],[41.94405723886426,-72.00658321380617],[41.94424088116388,-72.00607895851137],[41.94525090435694,-72.00682997703554]] },
     ];
 
     function loadDefaultPlan() {
@@ -1362,11 +1406,13 @@
           layer: layer,
           name: generateCropName(dz.cropId),
           mature: dz.mature || false,
+          plantYear: dz.plantYear || 0,
         };
         zones.push(zone);
         updateLayerPopup(zone);
         addZoneLabel(zone);
       });
+      updateZoneVisibility();
       renderZoneList();
       renderSummary();
       saveToStorage();
@@ -1376,6 +1422,9 @@
     if (zones.length === 0) {
       loadDefaultPlan();
     }
+
+    // Set initial visibility based on selected year
+    updateZoneVisibility();
   </script>
 </body>
 </html>

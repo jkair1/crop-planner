@@ -16,8 +16,35 @@
       background: #1a1a2e;
       color: #e0e0e0;
       min-height: 100vh;
-      padding: 20px;
+      padding: 0;
     }
+
+    /* Page Toggle */
+    .page-toggle {
+      display: flex;
+      background: #0a1628;
+      border-bottom: 1px solid #0f3460;
+    }
+    .page-toggle a {
+      flex: 1;
+      text-align: center;
+      padding: 10px 0;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-decoration: none;
+      color: #5c7a99;
+      letter-spacing: 0.5px;
+      transition: all 0.15s;
+      max-width: 160px;
+    }
+    .page-toggle a:hover { color: #e0e0e0; background: #16213e; }
+    .page-toggle a.active {
+      color: #e94560;
+      border-bottom: 2px solid #e94560;
+      background: #16213e;
+    }
+
+    .page-content { padding: 20px; }
 
     .header {
       display: flex;
@@ -180,6 +207,11 @@
   </style>
 </head>
 <body>
+  <nav class="page-toggle">
+    <a href="index.html">Map</a>
+    <a href="products.html" class="active">Products</a>
+  </nav>
+  <div class="page-content">
   <div class="header">
     <div>
       <h1>Product Sales Chart</h1>
@@ -196,7 +228,6 @@
         <option value="5" selected>Maturity (Year 6+)</option>
       </select>
       <button onclick="addRow()">+ Add Row</button>
-      <a href="index.html">Back to Map</a>
     </div>
   </div>
 
@@ -224,6 +255,7 @@
   </div>
 
   <div id="toast"></div>
+  </div><!-- /page-content -->
 
   <script>
     // ── Crop Definitions (same as main app) ───────────────────────

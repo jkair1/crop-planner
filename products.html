@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Product Sales Chart — Crop Planner</title>
+
+  <!-- Turf.js for area calculations (same as main app) -->
+  <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .header h1 {
+      font-size: 1.3rem;
+      color: #e94560;
+      letter-spacing: 0.5px;
+    }
+
+    .header .subtitle {
+      font-size: 0.75rem;
+      color: #8899aa;
+    }
+
+    .header-controls {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-left: auto;
+    }
+
+    .header select, .header a, .header button {
+      padding: 8px 14px;
+      background: #16213e;
+      color: #e0e0e0;
+      border: 1px solid #0f3460;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .header a:hover, .header button:hover { background: #1e2a4a; }
+
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 8px;
+      border: 1px solid #0f3460;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      min-width: 1200px;
+    }
+
+    thead th {
+      background: #16213e;
+      color: #5c7a99;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 10px 8px;
+      text-align: left;
+      border-bottom: 2px solid #0f3460;
+      position: sticky;
+      top: 0;
+      white-space: nowrap;
+    }
+
+    tbody td {
+      padding: 7px 8px;
+      border-bottom: 1px solid #0f3460;
+      vertical-align: middle;
+    }
+
+    tbody tr:hover { background: rgba(15, 52, 96, 0.3); }
+
+    /* Crop group separator */
+    tbody tr.crop-first td { border-top: 2px solid #1a3a5c; }
+
+    .crop-swatch {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+
+    /* Editable cells */
+    td.editable {
+      cursor: text;
+      position: relative;
+    }
+    td.editable:hover { background: rgba(15, 52, 96, 0.5); }
+    td.editable:focus-within { outline: 1px solid #e94560; outline-offset: -1px; }
+
+    td.editable input, td.editable select {
+      width: 100%;
+      background: transparent;
+      color: #e0e0e0;
+      border: none;
+      font-size: 0.82rem;
+      font-family: inherit;
+      padding: 0;
+      outline: none;
+    }
+    td.editable input[type="number"] {
+      -moz-appearance: textfield;
+    }
+    td.editable input::-webkit-inner-spin-button,
+    td.editable input::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    /* Calculated cells */
+    td.calc {
+      color: #7a8a9a;
+      font-style: italic;
+    }
+
+    /* Currency */
+    .currency { text-align: right; }
+
+    /* Totals row */
+    tr.totals-row td {
+      background: #16213e;
+      font-weight: 600;
+      border-top: 2px solid #e94560;
+      padding: 10px 8px;
+    }
+
+    /* Delete button */
+    .del-btn {
+      background: none;
+      border: none;
+      color: #666;
+      cursor: pointer;
+      font-size: 0.9rem;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    .del-btn:hover { color: #e94560; background: rgba(233, 69, 96, 0.1); }
+
+    #toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #16213e;
+      color: #e0e0e0;
+      padding: 10px 24px;
+      border-radius: 8px;
+      border: 1px solid #0f3460;
+      font-size: 0.85rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 9999;
+    }
+    #toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <h1>Product Sales Chart</h1>
+      <div class="subtitle">848 Route 171, Woodstock, CT 06281 — 43 Acres</div>
+    </div>
+    <div class="header-controls">
+      <label style="font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;color:#5c7a99;">Year</label>
+      <select id="year-select" onchange="changeYear(this.value)">
+        <option value="0">Year 1</option>
+        <option value="1">Year 2</option>
+        <option value="2">Year 3</option>
+        <option value="3">Year 4</option>
+        <option value="4">Year 5</option>
+        <option value="5" selected>Maturity (Year 6+)</option>
+      </select>
+      <button onclick="addRow()">+ Add Row</button>
+      <a href="index.html">Back to Map</a>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30px"></th>
+          <th>Crop</th>
+          <th>Product</th>
+          <th>% of Crop</th>
+          <th>% Retail Sales</th>
+          <th>Annual Yield (lbs)</th>
+          <th>Unit</th>
+          <th>Lbs / Unit</th>
+          <th>Retail / Unit</th>
+          <th>Wholesale / Unit</th>
+          <th>Retail Sales</th>
+          <th>Wholesale Sales</th>
+          <th>Total Sales</th>
+        </tr>
+      </thead>
+      <tbody id="product-body"></tbody>
+    </table>
+  </div>
+
+  <div id="toast"></div>
+
+  <script>
+    // ── Crop Definitions (same as main app) ───────────────────────
+    const CROPS = [
+      { id: 'grapes',       name: 'Grapes',        color: '#7b2d8e', icon: '🍇', yieldPerAcre: 8000,
+        yieldByYear: [0, 0.38, 0.75, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'orchard',      name: 'Fruit',         color: '#d94f4f', icon: '🍎', yieldPerAcre: 15750,
+        yieldByYear: [0, 0.13, 0.53, 0.80, 1.0, 1.0], isTree: false },
+      { id: 'herbs',        name: 'Herbs',         color: '#3dbf7a', icon: '🌱', yieldPerAcre: 6000,
+        yieldByYear: [0.58, 1.0, 1.0, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'blueberries',  name: 'Blueberries',   color: '#c94080', icon: '🫐', yieldPerAcre: 10000,
+        yieldByYear: [0.60, 0.90, 1.0, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'strawberries', name: 'Strawberries',  color: '#DC143C', icon: '🍓', yieldPerAcre: 12500,
+        yieldByYear: [0.80, 1.0, 1.0, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'raspberries',  name: 'Raspberries',   color: '#E8556D', icon: '🫐', yieldPerAcre: 10000,
+        yieldByYear: [0.20, 0.60, 0.90, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'blackberries', name: 'Blackberries',  color: '#2D1B2E', icon: '🫐', yieldPerAcre: 9500,
+        yieldByYear: [0.16, 0.53, 0.84, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'elderberries', name: 'Elderberries',  color: '#4B0082', icon: '🍇', yieldPerAcre: 4000,
+        yieldByYear: [0, 0.15, 0.50, 0.80, 1.0, 1.0], isTree: false },
+      { id: 'lavender',     name: 'Lavender',      color: '#9370DB', icon: '💜', yieldPerAcre: 550,
+        yieldByYear: [0.33, 0.67, 1.0, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'sunflowers',   name: 'Sunflowers',    color: '#FFD700', icon: '🌻', yieldPerAcre: 1200,
+        yieldByYear: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'nut_trees',    name: 'Nuts',          color: '#8B6914', icon: '🌰', yieldPerAcre: 1500,
+        yieldByYear: [0, 0.07, 0.23, 0.50, 0.77, 1.0], isTree: false },
+      { id: 'saffron',      name: 'Saffron',       color: '#FF6347', icon: '🌸', yieldPerAcre: 11.5,
+        yieldByYear: [0.52, 0.78, 1.0, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'christmas_trees', name: 'Christmas Trees', color: '#228B22', icon: '🎄', yieldPerAcre: 0,
+        treesPerAcrePerYear: 118, yieldByYear: [0, 0, 0, 0, 0, 1.0], isTree: true },
+    ];
+
+    function getCrop(id) { return CROPS.find(c => c.id === id); }
+
+    let selectedYear = 5;
+
+    // ── Default Product Rows ──────────────────────────────────────
+    const DEFAULT_PRODUCTS = [
+      { cropId: 'grapes',      product: 'Wine Bottle',    percentOfCrop: 0.70, pctRetail: 0.80, unit: '750 ML',  lbsPerUnit: 3,      retailPerUnit: 30,    wholesalePerUnit: 15    },
+      { cropId: 'grapes',      product: 'Wine Glass',     percentOfCrop: 0.30, pctRetail: 1.00, unit: '750 ML',  lbsPerUnit: 3,      retailPerUnit: 60,    wholesalePerUnit: 30    },
+      { cropId: 'saffron',     product: 'Threads',        percentOfCrop: 1.00, pctRetail: 0.80, unit: '1 g',     lbsPerUnit: 0.0022, retailPerUnit: 10,    wholesalePerUnit: 5     },
+      { cropId: 'herbs',       product: 'Fresh',          percentOfCrop: 0.80, pctRetail: 0.75, unit: '1 oz',    lbsPerUnit: 0.0625, retailPerUnit: 3,     wholesalePerUnit: 1.50  },
+      { cropId: 'herbs',       product: 'Oil',            percentOfCrop: 0.20, pctRetail: 0.75, unit: '1 fl oz', lbsPerUnit: 0.0625, retailPerUnit: 18,    wholesalePerUnit: 9     },
+      { cropId: 'lavender',    product: 'Fresh',          percentOfCrop: 0.75, pctRetail: 0.75, unit: '1 oz',    lbsPerUnit: 0.0625, retailPerUnit: 4,     wholesalePerUnit: 2     },
+      { cropId: 'lavender',    product: 'Oil',            percentOfCrop: 0.25, pctRetail: 0.75, unit: '1 fl oz', lbsPerUnit: 0.0625, retailPerUnit: 25,    wholesalePerUnit: 12.50 },
+      { cropId: 'orchard',     product: 'Apple',          percentOfCrop: 0.50, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 2.50,  wholesalePerUnit: 1     },
+      { cropId: 'orchard',     product: 'Cider',          percentOfCrop: 0.50, pctRetail: 0.75, unit: '750 ml',  lbsPerUnit: 3,      retailPerUnit: 12,    wholesalePerUnit: 6     },
+      { cropId: 'nut_trees',   product: 'Walnut',         percentOfCrop: 1.00, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 12,    wholesalePerUnit: 6     },
+      { cropId: 'elderberries', product: 'Fresh',         percentOfCrop: 0.25, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 10,    wholesalePerUnit: 5     },
+      { cropId: 'elderberries', product: 'Syrup',         percentOfCrop: 0.75, pctRetail: 0.75, unit: '12 oz',   lbsPerUnit: 0.75,   retailPerUnit: 18,    wholesalePerUnit: 9     },
+      { cropId: 'strawberries', product: 'Fresh',         percentOfCrop: 0.75, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 6,     wholesalePerUnit: 3     },
+      { cropId: 'strawberries', product: 'Jam',           percentOfCrop: 0.25, pctRetail: 0.75, unit: '8 oz',    lbsPerUnit: 0.5,    retailPerUnit: 8,     wholesalePerUnit: 4     },
+      { cropId: 'blackberries', product: 'Fresh',         percentOfCrop: 0.75, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 7,     wholesalePerUnit: 3.50  },
+      { cropId: 'blackberries', product: 'Jam',           percentOfCrop: 0.25, pctRetail: 0.75, unit: '8 oz',    lbsPerUnit: 0.5,    retailPerUnit: 9,     wholesalePerUnit: 4.50  },
+      { cropId: 'blueberries',  product: 'Fresh',         percentOfCrop: 0.75, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 7,     wholesalePerUnit: 3.50  },
+      { cropId: 'blueberries',  product: 'Jam',           percentOfCrop: 0.25, pctRetail: 0.75, unit: '8 oz',    lbsPerUnit: 0.5,    retailPerUnit: 9,     wholesalePerUnit: 4.50  },
+      { cropId: 'raspberries',  product: 'Fresh',         percentOfCrop: 0.75, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 8,     wholesalePerUnit: 4     },
+      { cropId: 'raspberries',  product: 'Jam',           percentOfCrop: 0.25, pctRetail: 0.75, unit: '8 oz',    lbsPerUnit: 0.5,    retailPerUnit: 9,     wholesalePerUnit: 4.50  },
+      { cropId: 'sunflowers',   product: 'Dried Bouquet', percentOfCrop: 1.00, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 0.75,  wholesalePerUnit: 0.25  },
+      { cropId: 'christmas_trees', product: 'Tree',       percentOfCrop: 1.00, pctRetail: 0.75, unit: '1 tree',  lbsPerUnit: 0,      retailPerUnit: 60,    wholesalePerUnit: 15    },
+    ];
+
+    // ── Persistence ───────────────────────────────────────────────
+    const PRODUCTS_KEY = 'cropPlannerProducts';
+
+    function loadProducts() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(PRODUCTS_KEY));
+        if (saved && saved.length > 0) return saved;
+      } catch(e) {}
+      return JSON.parse(JSON.stringify(DEFAULT_PRODUCTS));
+    }
+
+    function saveProducts() {
+      localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
+    }
+
+    let products = loadProducts();
+
+    // ── Yield Calculation ─────────────────────────────────────────
+    // Reads zone data from localStorage (saved by main app) and computes
+    // per-crop total yield in lbs for the selected year.
+    function calcAcresFromLatLngs(latlngs) {
+      const coords = latlngs.map(ll => [ll[1], ll[0]]);
+      coords.push(coords[0]);
+      try {
+        const polygon = turf.polygon([coords]);
+        return turf.area(polygon) / 4046.86;
+      } catch(e) { return 0; }
+    }
+
+    function computeCropYields() {
+      const yields = {};
+      CROPS.forEach(c => { yields[c.id] = { totalLbs: 0, acres: 0, trees: 0 }; });
+
+      try {
+        const zoneData = JSON.parse(localStorage.getItem('cropPlannerZones')) || [];
+        zoneData.forEach(z => {
+          const crop = getCrop(z.cropId);
+          if (!crop) return;
+          // Visibility check
+          if (!z.mature && !isNoCalc(crop) && selectedYear < (z.plantYear || 0)) return;
+          const acres = calcAcresFromLatLngs(z.latlngs);
+          const yi = z.mature ? 5 : Math.min(Math.max(selectedYear - (z.plantYear || 0), 0), 5);
+          const ym = crop.yieldByYear ? crop.yieldByYear[yi] : 1;
+
+          if (!yields[z.cropId]) yields[z.cropId] = { totalLbs: 0, acres: 0, trees: 0 };
+          yields[z.cropId].acres += acres;
+
+          if (crop.isTree) {
+            yields[z.cropId].trees += Math.round(acres * crop.treesPerAcrePerYear * ym);
+          } else {
+            yields[z.cropId].totalLbs += acres * crop.yieldPerAcre * ym;
+          }
+        });
+      } catch(e) {
+        console.warn('Failed to read zone data:', e);
+      }
+
+      return yields;
+    }
+
+    function isNoCalc(crop) {
+      return crop.id === 'buildings' || crop.id === 'driveway';
+    }
+
+    // ── Rendering ─────────────────────────────────────────────────
+    function renderTable() {
+      const tbody = document.getElementById('product-body');
+      const yields = computeCropYields();
+
+      let html = '';
+      let totalYield = 0;
+      let totalRetail = 0;
+      let totalWholesale = 0;
+      let totalSales = 0;
+      let lastCropId = null;
+
+      products.forEach((p, i) => {
+        const crop = getCrop(p.cropId);
+        if (!crop) return;
+        const isFirst = p.cropId !== lastCropId;
+        lastCropId = p.cropId;
+
+        // Calculate yield for this product row
+        let productYield = 0;
+        if (crop.isTree) {
+          productYield = (yields[p.cropId]?.trees || 0) * p.percentOfCrop;
+        } else {
+          productYield = (yields[p.cropId]?.totalLbs || 0) * p.percentOfCrop;
+        }
+
+        // Calculate sales
+        let retailSales = 0;
+        let wholesaleSales = 0;
+        if (crop.isTree) {
+          // For trees, yield is tree count — units = trees
+          retailSales = productYield * p.retailPerUnit * p.pctRetail;
+          wholesaleSales = productYield * p.wholesalePerUnit * (1 - p.pctRetail);
+        } else if (p.lbsPerUnit > 0) {
+          const units = productYield / p.lbsPerUnit;
+          retailSales = units * p.retailPerUnit * p.pctRetail;
+          wholesaleSales = units * p.wholesalePerUnit * (1 - p.pctRetail);
+        }
+        const rowTotal = retailSales + wholesaleSales;
+
+        totalYield += productYield;
+        totalRetail += retailSales;
+        totalWholesale += wholesaleSales;
+        totalSales += rowTotal;
+
+        // Build crop selector options
+        const cropOptions = CROPS.filter(c => !isNoCalc(c)).map(c =>
+          `<option value="${c.id}" ${c.id === p.cropId ? 'selected' : ''}>${c.icon} ${c.name}</option>`
+        ).join('');
+
+        const yieldDisplay = crop.isTree
+          ? `${Math.round(productYield).toLocaleString()} trees`
+          : `${Math.round(productYield).toLocaleString()}`;
+
+        html += `
+          <tr class="${isFirst ? 'crop-first' : ''}" data-idx="${i}">
+            <td><button class="del-btn" onclick="deleteRow(${i})" title="Delete row">&times;</button></td>
+            <td class="editable">
+              <span class="crop-swatch" style="background:${crop.color}"></span>
+              <select onchange="updateField(${i}, 'cropId', this.value)">${cropOptions}</select>
+            </td>
+            <td class="editable"><input type="text" value="${esc(p.product)}" onchange="updateField(${i}, 'product', this.value)"></td>
+            <td class="editable"><input type="number" step="0.01" min="0" max="1" value="${p.percentOfCrop}" onchange="updateField(${i}, 'percentOfCrop', parseFloat(this.value))"></td>
+            <td class="editable"><input type="number" step="0.01" min="0" max="1" value="${p.pctRetail}" onchange="updateField(${i}, 'pctRetail', parseFloat(this.value))"></td>
+            <td class="calc">${yieldDisplay}</td>
+            <td class="editable"><input type="text" value="${esc(p.unit)}" onchange="updateField(${i}, 'unit', this.value)"></td>
+            <td class="editable"><input type="number" step="0.0001" min="0" value="${p.lbsPerUnit}" onchange="updateField(${i}, 'lbsPerUnit', parseFloat(this.value))"></td>
+            <td class="editable currency"><input type="number" step="0.01" min="0" value="${p.retailPerUnit}" onchange="updateField(${i}, 'retailPerUnit', parseFloat(this.value))" style="text-align:right"></td>
+            <td class="editable currency"><input type="number" step="0.01" min="0" value="${p.wholesalePerUnit}" onchange="updateField(${i}, 'wholesalePerUnit', parseFloat(this.value))" style="text-align:right"></td>
+            <td class="calc currency">$${formatNum(retailSales)}</td>
+            <td class="calc currency">$${formatNum(wholesaleSales)}</td>
+            <td class="calc currency" style="font-weight:600">$${formatNum(rowTotal)}</td>
+          </tr>`;
+      });
+
+      // Totals row
+      html += `
+        <tr class="totals-row">
+          <td></td>
+          <td></td>
+          <td></td>
+          <td colspan="1" style="font-weight:600">Total</td>
+          <td></td>
+          <td class="calc">${Math.round(totalYield).toLocaleString()}</td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td></td>
+          <td class="calc currency">$${formatNum(totalRetail)}</td>
+          <td class="calc currency">$${formatNum(totalWholesale)}</td>
+          <td class="calc currency" style="font-weight:600;color:#e94560;">$${formatNum(totalSales)}</td>
+        </tr>`;
+
+      tbody.innerHTML = html;
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────
+    function esc(s) { return String(s).replace(/"/g, '&quot;').replace(/</g, '&lt;'); }
+
+    function formatNum(n) {
+      if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+      return n.toFixed(0);
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    // ── Actions ───────────────────────────────────────────────────
+    function updateField(idx, field, value) {
+      if (idx < 0 || idx >= products.length) return;
+      products[idx][field] = value;
+      saveProducts();
+      renderTable();
+    }
+
+    function deleteRow(idx) {
+      if (idx < 0 || idx >= products.length) return;
+      products.splice(idx, 1);
+      saveProducts();
+      renderTable();
+      showToast('Row deleted');
+    }
+
+    function addRow() {
+      // Default to first available crop
+      const firstCrop = CROPS.find(c => !isNoCalc(c));
+      products.push({
+        cropId: firstCrop.id,
+        product: 'New Product',
+        percentOfCrop: 0,
+        pctRetail: 0.75,
+        unit: '1 lb',
+        lbsPerUnit: 1,
+        retailPerUnit: 0,
+        wholesalePerUnit: 0,
+      });
+      saveProducts();
+      renderTable();
+      showToast('Row added — edit the new row below');
+    }
+
+    function changeYear(val) {
+      selectedYear = parseInt(val);
+      renderTable();
+    }
+
+    // ── Initialize ────────────────────────────────────────────────
+    // Sync year with main app if available
+    try {
+      const yieldData = JSON.parse(localStorage.getItem('cropPlannerYields'));
+      if (yieldData && yieldData._selectedYear !== undefined) {
+        selectedYear = yieldData._selectedYear;
+        document.getElementById('year-select').value = selectedYear;
+      }
+    } catch(e) {}
+
+    renderTable();
+  </script>
+</body>
+</html>

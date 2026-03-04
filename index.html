@@ -128,38 +128,6 @@
       flex: 1;
     }
 
-    .retail-pct-wrap {
-      display: flex;
-      align-items: center;
-      gap: 2px;
-      font-size: 0.7rem;
-      color: #7a8a9a;
-      white-space: nowrap;
-    }
-
-    .retail-pct-input {
-      width: 36px;
-      padding: 3px 2px;
-      background: #0a1628;
-      color: #e0e0e0;
-      border: 1px solid #1a3a5c;
-      border-radius: 4px;
-      font-size: 0.7rem;
-      text-align: center;
-      -moz-appearance: textfield;
-    }
-
-    .retail-pct-input::-webkit-inner-spin-button,
-    .retail-pct-input::-webkit-outer-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
-
-    .retail-pct-label {
-      font-size: 0.6rem;
-      color: #556;
-    }
-
     .crop-btn:hover { background: #1e2a4a; }
 
     .crop-btn.active {
@@ -447,6 +415,7 @@
     <div id="rationale-panel"></div>
 
     <button class="export-btn" onclick="exportPlan()">Export Plan as JSON</button>
+    <a href="products.html" class="export-btn" style="text-align:center;text-decoration:none;display:block;margin-top:4px;">Product Sales Chart</a>
   </div>
 
   <div id="map-container">
@@ -504,37 +473,56 @@
 
     let selectedYear = 5; // index into yieldByYear (0=yr1, ..., 5=maturity)
 
-    // Retail % per crop (user-adjustable, saved to localStorage)
-    const RETAIL_PCT_KEY = 'cropPlannerRetailPct';
-    const retailPct = (() => {
-      try {
-        const saved = JSON.parse(localStorage.getItem(RETAIL_PCT_KEY));
-        if (saved && typeof saved === 'object') return saved;
-      } catch(e) {}
-      return {};
-    })();
-    CROPS.forEach(c => { if (retailPct[c.id] === undefined) retailPct[c.id] = 33; });
-
-    function setRetailPct(cropId, pct) {
-      retailPct[cropId] = Math.max(0, Math.min(100, parseInt(pct) || 0));
-      localStorage.setItem(RETAIL_PCT_KEY, JSON.stringify(retailPct));
-      renderSummary();
+    // ── Product Chart Data (from products.html) ───────────────────
+    const PRODUCTS_KEY = 'cropPlannerProducts';
+    function loadProductData() {
+      try { return JSON.parse(localStorage.getItem(PRODUCTS_KEY)) || []; }
+      catch(e) { return []; }
+    }
+    function getProductsForCrop(cropId) {
+      return loadProductData().filter(p => p.cropId === cropId);
     }
 
-    // Revenue = yield/acre × blended price/lb × year multiplier × acres
-    // Christmas trees: trees/acre/yr × blended price/tree × year multiplier × acres
+    // Revenue = uses product chart data when available, fallback to 33% retail blend
     function calcCropRevenue(crop, acres, yearIdx) {
       const yi = yearIdx !== undefined ? yearIdx : selectedYear;
       const ym = crop.yieldByYear ? crop.yieldByYear[yi] : 1;
-      const rp = retailPct[crop.id] / 100;
+
+      // Christmas trees special case
       if (crop.retailPerTree) {
-        const pricePerTree = crop.wholesalePerTree * (1 - rp) + crop.retailPerTree * rp;
         const trees = Math.round(acres * crop.treesPerAcrePerYear * ym);
-        return { revenue: trees * pricePerTree, trees: trees };
+        const products = getProductsForCrop(crop.id);
+        if (products.length > 0) {
+          let revenue = 0;
+          products.forEach(p => {
+            const productTrees = trees * p.percentOfCrop;
+            revenue += productTrees * p.retailPerUnit * p.pctRetail;
+            revenue += productTrees * p.wholesalePerUnit * (1 - p.pctRetail);
+          });
+          return { revenue, trees };
+        }
+        const price = crop.wholesalePerTree * 0.67 + crop.retailPerTree * 0.33;
+        return { revenue: trees * price, trees };
       }
-      const lbs = acres * crop.yieldPerAcre * ym;
-      const pricePerLb = crop.wholesalePerLb * (1 - rp) + crop.retailPerLb * rp;
-      return { revenue: lbs * pricePerLb };
+
+      const totalLbs = acres * crop.yieldPerAcre * ym;
+
+      // Use product chart data if available
+      const products = getProductsForCrop(crop.id);
+      if (products.length > 0) {
+        let revenue = 0;
+        products.forEach(p => {
+          const productLbs = totalLbs * p.percentOfCrop;
+          const units = productLbs / p.lbsPerUnit;
+          revenue += units * p.retailPerUnit * p.pctRetail;
+          revenue += units * p.wholesalePerUnit * (1 - p.pctRetail);
+        });
+        return { revenue };
+      }
+
+      // Fallback: 33% retail blend
+      const price = crop.wholesalePerLb * 0.67 + crop.retailPerLb * 0.33;
+      return { revenue: totalLbs * price };
     }
 
     let selectedCrop = CROPS[0];
@@ -555,12 +543,6 @@
         selectedCrop = crop;
       };
       row.appendChild(btn);
-      if (crop.wholesalePerLb > 0 || crop.retailPerLb > 0 || crop.retailPerTree > 0) {
-        const pctWrap = document.createElement('div');
-        pctWrap.className = 'retail-pct-wrap';
-        pctWrap.innerHTML = `<input type="number" min="0" max="100" value="${retailPct[crop.id]}" class="retail-pct-input" onchange="setRetailPct('${crop.id}', this.value)" title="% of sales from retail">%<span class="retail-pct-label">retail</span>`;
-        row.appendChild(pctWrap);
-      }
       paletteEl.appendChild(row);
     });
 
@@ -1032,6 +1014,14 @@
         totalLbs += lbs;
       });
 
+      // Export yield data for products page
+      const yieldExport = {};
+      Object.entries(grouped).forEach(([cropId, data]) => {
+        yieldExport[cropId] = { totalLbs: data.lbs, acres: data.acres, trees: data.trees };
+      });
+      yieldExport._selectedYear = selectedYear;
+      localStorage.setItem('cropPlannerYields', JSON.stringify(yieldExport));
+
       const yearLabels = ['Year 1','Year 2','Year 3','Year 4','Year 5','Maturity'];
 
       const rows = Object.entries(grouped).map(([cropId, data]) => {
@@ -1173,11 +1163,13 @@
       }
     }
 
-    // One-time clear for v7 (per-year zone planting)
-    if (!localStorage.getItem('cropPlannerV7')) {
+    // One-time clear for v8 (product sales chart)
+    if (!localStorage.getItem('cropPlannerV8')) {
       localStorage.removeItem(STORAGE_KEY);
       localStorage.removeItem('cropPlannerSuggestedSeen');
-      localStorage.setItem('cropPlannerV7', 'true');
+      localStorage.removeItem('cropPlannerRetailPct');
+      localStorage.removeItem(PRODUCTS_KEY);
+      localStorage.setItem('cropPlannerV8', 'true');
     }
 
     // Load saved zones on startup

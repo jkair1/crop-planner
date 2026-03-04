@@ -191,14 +191,39 @@
 
     function isNoCalc(id) { return id === 'buildings' || id === 'driveway'; }
 
-    // ── Load product chart data ───────────────────────────────────
+    // ── Product chart data ──────────────────────────────────────
     const PRODUCTS_KEY = 'cropPlannerProducts';
+    const DEFAULT_PRODUCTS = [
+      { cropId: 'grapes',      product: 'Wine Bottle',    percentOfCrop: 0.70, pctRetail: 0.80, unit: '750 ML',  lbsPerUnit: 3,      retailPerUnit: 30,    wholesalePerUnit: 15    },
+      { cropId: 'grapes',      product: 'Wine Glass',     percentOfCrop: 0.30, pctRetail: 1.00, unit: '750 ML',  lbsPerUnit: 3,      retailPerUnit: 60,    wholesalePerUnit: 30    },
+      { cropId: 'saffron',     product: 'Threads',        percentOfCrop: 1.00, pctRetail: 0.80, unit: '1 g',     lbsPerUnit: 0.0022, retailPerUnit: 10,    wholesalePerUnit: 5     },
+      { cropId: 'herbs',       product: 'Fresh',          percentOfCrop: 0.80, pctRetail: 0.75, unit: '1 oz',    lbsPerUnit: 0.0625, retailPerUnit: 3,     wholesalePerUnit: 1.50  },
+      { cropId: 'herbs',       product: 'Oil',            percentOfCrop: 0.20, pctRetail: 0.75, unit: '1 fl oz', lbsPerUnit: 0.0625, retailPerUnit: 18,    wholesalePerUnit: 9     },
+      { cropId: 'lavender',    product: 'Fresh',          percentOfCrop: 0.75, pctRetail: 0.75, unit: '1 oz',    lbsPerUnit: 0.0625, retailPerUnit: 4,     wholesalePerUnit: 2     },
+      { cropId: 'lavender',    product: 'Oil',            percentOfCrop: 0.25, pctRetail: 0.75, unit: '1 fl oz', lbsPerUnit: 0.0625, retailPerUnit: 25,    wholesalePerUnit: 12.50 },
+      { cropId: 'orchard',     product: 'Apple',          percentOfCrop: 0.50, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 2.50,  wholesalePerUnit: 1     },
+      { cropId: 'orchard',     product: 'Cider',          percentOfCrop: 0.50, pctRetail: 0.75, unit: '750 ml',  lbsPerUnit: 3,      retailPerUnit: 12,    wholesalePerUnit: 6     },
+      { cropId: 'nut_trees',   product: 'Walnut',         percentOfCrop: 1.00, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 12,    wholesalePerUnit: 6     },
+      { cropId: 'elderberries', product: 'Fresh',         percentOfCrop: 0.25, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 10,    wholesalePerUnit: 5     },
+      { cropId: 'elderberries', product: 'Syrup',         percentOfCrop: 0.75, pctRetail: 0.75, unit: '12 oz',   lbsPerUnit: 0.75,   retailPerUnit: 18,    wholesalePerUnit: 9     },
+      { cropId: 'strawberries', product: 'Fresh',         percentOfCrop: 0.75, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 6,     wholesalePerUnit: 3     },
+      { cropId: 'strawberries', product: 'Jam',           percentOfCrop: 0.25, pctRetail: 0.75, unit: '8 oz',    lbsPerUnit: 0.5,    retailPerUnit: 8,     wholesalePerUnit: 4     },
+      { cropId: 'blackberries', product: 'Fresh',         percentOfCrop: 0.75, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 7,     wholesalePerUnit: 3.50  },
+      { cropId: 'blackberries', product: 'Jam',           percentOfCrop: 0.25, pctRetail: 0.75, unit: '8 oz',    lbsPerUnit: 0.5,    retailPerUnit: 9,     wholesalePerUnit: 4.50  },
+      { cropId: 'blueberries',  product: 'Fresh',         percentOfCrop: 0.75, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 7,     wholesalePerUnit: 3.50  },
+      { cropId: 'blueberries',  product: 'Jam',           percentOfCrop: 0.25, pctRetail: 0.75, unit: '8 oz',    lbsPerUnit: 0.5,    retailPerUnit: 9,     wholesalePerUnit: 4.50  },
+      { cropId: 'raspberries',  product: 'Fresh',         percentOfCrop: 0.75, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 8,     wholesalePerUnit: 4     },
+      { cropId: 'raspberries',  product: 'Jam',           percentOfCrop: 0.25, pctRetail: 0.75, unit: '8 oz',    lbsPerUnit: 0.5,    retailPerUnit: 9,     wholesalePerUnit: 4.50  },
+      { cropId: 'sunflowers',   product: 'Dried Bouquet', percentOfCrop: 1.00, pctRetail: 0.75, unit: '1 lb',    lbsPerUnit: 1,      retailPerUnit: 0.75,  wholesalePerUnit: 0.25  },
+      { cropId: 'christmas_trees', product: 'Tree',       percentOfCrop: 1.00, pctRetail: 0.75, unit: '1 tree',  lbsPerUnit: 0,      retailPerUnit: 60,    wholesalePerUnit: 15    },
+    ];
+
     function loadProducts() {
       try {
         const saved = JSON.parse(localStorage.getItem(PRODUCTS_KEY));
         if (saved && saved.length > 0) return saved;
       } catch(e) {}
-      return [];
+      return DEFAULT_PRODUCTS;
     }
 
     // ── Yield from zones ──────────────────────────────────────────
@@ -331,6 +356,12 @@
     }
 
     render();
+
+    // Re-render when returning to this page (picks up zone/product changes)
+    window.addEventListener('focus', render);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) render();
+    });
   </script>
 </body>
 </html>

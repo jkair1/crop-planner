@@ -1445,6 +1445,12 @@
 
     // Set initial visibility based on selected year
     updateZoneVisibility();
+
+    // Re-render revenue when returning (picks up product chart changes)
+    window.addEventListener('focus', renderSummary);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) renderSummary();
+    });
   </script>
 </body>
 </html>

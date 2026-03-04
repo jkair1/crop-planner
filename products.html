@@ -544,7 +544,16 @@
       }
     } catch(e) {}
 
+    // Persist defaults so other pages can read them
+    saveProducts();
+
     renderTable();
+
+    // Re-render when returning to this page (picks up zone changes from map)
+    window.addEventListener('focus', renderTable);
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) renderTable();
+    });
   </script>
 </body>
 </html>

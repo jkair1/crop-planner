@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Revenue Summary — Crop Planner</title>
+
+  <script src="https://unpkg.com/@turf/turf@7/turf.min.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 0;
+    }
+
+    .page-toggle {
+      display: flex;
+      background: #0a1628;
+      border-bottom: 1px solid #0f3460;
+    }
+    .page-toggle a {
+      flex: 1;
+      text-align: center;
+      padding: 10px 0;
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-decoration: none;
+      color: #5c7a99;
+      letter-spacing: 0.5px;
+      transition: all 0.15s;
+      max-width: 160px;
+    }
+    .page-toggle a:hover { color: #e0e0e0; background: #16213e; }
+    .page-toggle a.active {
+      color: #e94560;
+      border-bottom: 2px solid #e94560;
+      background: #16213e;
+    }
+
+    .page-content { padding: 20px; }
+
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+    }
+
+    .header h1 {
+      font-size: 1.3rem;
+      color: #e94560;
+      letter-spacing: 0.5px;
+    }
+
+    .header .subtitle {
+      font-size: 0.75rem;
+      color: #8899aa;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: 8px;
+      border: 1px solid #0f3460;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+
+    thead th {
+      background: #16213e;
+      color: #5c7a99;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 10px 12px;
+      text-align: right;
+      border-bottom: 2px solid #0f3460;
+      position: sticky;
+      top: 0;
+      white-space: nowrap;
+    }
+    thead th:first-child { text-align: left; }
+
+    tbody td {
+      padding: 8px 12px;
+      border-bottom: 1px solid #0f3460;
+      text-align: right;
+    }
+    tbody td:first-child { text-align: left; }
+
+    tbody tr:hover { background: rgba(15, 52, 96, 0.3); }
+    tbody tr.crop-row td { border-top: none; }
+
+    .crop-swatch {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+
+    tr.totals-row td {
+      background: #16213e;
+      font-weight: 600;
+      border-top: 2px solid #e94560;
+      padding: 10px 12px;
+    }
+    tr.totals-row td.grand-total {
+      color: #e94560;
+      font-size: 0.95rem;
+    }
+
+    .zero { color: #445; }
+  </style>
+</head>
+<body>
+  <nav class="page-toggle">
+    <a href="index.html">Map</a>
+    <a href="products.html">Products</a>
+    <a href="summary.html" class="active">Summary</a>
+  </nav>
+  <div class="page-content">
+    <div class="header">
+      <div>
+        <h1>Revenue Summary by Year</h1>
+        <div class="subtitle">848 Route 171, Woodstock, CT 06281 — 43 Acres</div>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Crop</th>
+            <th>Acres</th>
+            <th>Year 1</th>
+            <th>Year 2</th>
+            <th>Year 3</th>
+            <th>Year 4</th>
+            <th>Year 5</th>
+            <th>Maturity</th>
+          </tr>
+        </thead>
+        <tbody id="summary-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    // ── Crop Definitions ──────────────────────────────────────────
+    const CROPS = [
+      { id: 'grapes',       name: 'Grapes',        color: '#7b2d8e', icon: '🍇', yieldPerAcre: 8000,
+        yieldByYear: [0, 0.38, 0.75, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'orchard',      name: 'Fruit',         color: '#d94f4f', icon: '🍎', yieldPerAcre: 15750,
+        yieldByYear: [0, 0.13, 0.53, 0.80, 1.0, 1.0], isTree: false },
+      { id: 'herbs',        name: 'Herbs',         color: '#3dbf7a', icon: '🌱', yieldPerAcre: 6000,
+        yieldByYear: [0.58, 1.0, 1.0, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'blueberries',  name: 'Blueberries',   color: '#c94080', icon: '🫐', yieldPerAcre: 10000,
+        yieldByYear: [0.60, 0.90, 1.0, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'strawberries', name: 'Strawberries',  color: '#DC143C', icon: '🍓', yieldPerAcre: 12500,
+        yieldByYear: [0.80, 1.0, 1.0, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'raspberries',  name: 'Raspberries',   color: '#E8556D', icon: '🫐', yieldPerAcre: 10000,
+        yieldByYear: [0.20, 0.60, 0.90, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'blackberries', name: 'Blackberries',  color: '#2D1B2E', icon: '🫐', yieldPerAcre: 9500,
+        yieldByYear: [0.16, 0.53, 0.84, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'elderberries', name: 'Elderberries',  color: '#4B0082', icon: '🍇', yieldPerAcre: 4000,
+        yieldByYear: [0, 0.15, 0.50, 0.80, 1.0, 1.0], isTree: false },
+      { id: 'lavender',     name: 'Lavender',      color: '#9370DB', icon: '💜', yieldPerAcre: 550,
+        yieldByYear: [0.33, 0.67, 1.0, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'sunflowers',   name: 'Sunflowers',    color: '#FFD700', icon: '🌻', yieldPerAcre: 1200,
+        yieldByYear: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'nut_trees',    name: 'Nuts',          color: '#8B6914', icon: '🌰', yieldPerAcre: 1500,
+        yieldByYear: [0, 0.07, 0.23, 0.50, 0.77, 1.0], isTree: false },
+      { id: 'saffron',      name: 'Saffron',       color: '#FF6347', icon: '🌸', yieldPerAcre: 11.5,
+        yieldByYear: [0.52, 0.78, 1.0, 1.0, 1.0, 1.0], isTree: false },
+      { id: 'christmas_trees', name: 'Christmas Trees', color: '#228B22', icon: '🎄', yieldPerAcre: 0,
+        treesPerAcrePerYear: 118, yieldByYear: [0, 0, 0, 0, 0, 1.0], isTree: true },
+    ];
+
+    function getCrop(id) { return CROPS.find(c => c.id === id); }
+
+    function isNoCalc(id) { return id === 'buildings' || id === 'driveway'; }
+
+    // ── Load product chart data ───────────────────────────────────
+    const PRODUCTS_KEY = 'cropPlannerProducts';
+    function loadProducts() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(PRODUCTS_KEY));
+        if (saved && saved.length > 0) return saved;
+      } catch(e) {}
+      return [];
+    }
+
+    // ── Yield from zones ──────────────────────────────────────────
+    function calcAcresFromLatLngs(latlngs) {
+      const coords = latlngs.map(ll => [ll[1], ll[0]]);
+      coords.push(coords[0]);
+      try {
+        const polygon = turf.polygon([coords]);
+        return turf.area(polygon) / 4046.86;
+      } catch(e) { return 0; }
+    }
+
+    function loadZones() {
+      try { return JSON.parse(localStorage.getItem('cropPlannerZones')) || []; }
+      catch(e) { return []; }
+    }
+
+    // Compute per-crop yield (lbs or trees) and acres for a given year
+    function computeYieldsForYear(year) {
+      const yields = {};
+      const zones = loadZones();
+      zones.forEach(z => {
+        const crop = getCrop(z.cropId);
+        if (!crop || isNoCalc(z.cropId)) return;
+        if (!z.mature && year < (z.plantYear || 0)) return;
+        const acres = calcAcresFromLatLngs(z.latlngs);
+        const yi = z.mature ? 5 : Math.min(Math.max(year - (z.plantYear || 0), 0), 5);
+        const ym = crop.yieldByYear ? crop.yieldByYear[yi] : 1;
+
+        if (!yields[z.cropId]) yields[z.cropId] = { totalLbs: 0, acres: 0, trees: 0 };
+        yields[z.cropId].acres += acres;
+        if (crop.isTree) {
+          yields[z.cropId].trees += Math.round(acres * crop.treesPerAcrePerYear * ym);
+        } else {
+          yields[z.cropId].totalLbs += acres * crop.yieldPerAcre * ym;
+        }
+      });
+      return yields;
+    }
+
+    // ── Revenue calculation using product chart ───────────────────
+    function calcRevenueForCrop(cropId, yields, products) {
+      const crop = getCrop(cropId);
+      if (!crop) return 0;
+      const cropProducts = products.filter(p => p.cropId === cropId);
+      const y = yields[cropId];
+      if (!y) return 0;
+
+      if (cropProducts.length > 0) {
+        let revenue = 0;
+        cropProducts.forEach(p => {
+          if (crop.isTree) {
+            const productTrees = y.trees * p.percentOfCrop;
+            revenue += productTrees * p.retailPerUnit * p.pctRetail;
+            revenue += productTrees * p.wholesalePerUnit * (1 - p.pctRetail);
+          } else if (p.lbsPerUnit > 0) {
+            const productLbs = y.totalLbs * p.percentOfCrop;
+            const units = productLbs / p.lbsPerUnit;
+            revenue += units * p.retailPerUnit * p.pctRetail;
+            revenue += units * p.wholesalePerUnit * (1 - p.pctRetail);
+          }
+        });
+        return revenue;
+      }
+
+      // Fallback: 33% retail blend
+      if (crop.isTree) {
+        return y.trees * (crop.wholesalePerTree * 0.67 + (crop.retailPerTree || 0) * 0.33);
+      }
+      const price = (crop.wholesalePerLb || 0) * 0.67 + (crop.retailPerLb || 0) * 0.33;
+      return y.totalLbs * price;
+    }
+
+    // ── Render ────────────────────────────────────────────────────
+    function formatMoney(n) {
+      if (n >= 1000000) return '$' + (n / 1000000).toFixed(1) + 'M';
+      if (n >= 1000) return '$' + (n / 1000).toFixed(1) + 'K';
+      if (n === 0) return '$0';
+      return '$' + n.toFixed(0);
+    }
+
+    function render() {
+      const tbody = document.getElementById('summary-body');
+      const products = loadProducts();
+
+      // Compute yields and revenue for all 6 year indices
+      const yearData = []; // [{yields, revenues}] for years 0-5
+      for (let yr = 0; yr <= 5; yr++) {
+        const yields = computeYieldsForYear(yr);
+        const revenues = {};
+        CROPS.forEach(c => {
+          if (isNoCalc(c.id)) return;
+          revenues[c.id] = calcRevenueForCrop(c.id, yields, products);
+        });
+        yearData.push({ yields, revenues });
+      }
+
+      // Find which crops have any zones (acres > 0 in any year)
+      const activeCrops = CROPS.filter(c => {
+        if (isNoCalc(c.id)) return false;
+        return yearData.some(yd => yd.yields[c.id] && yd.yields[c.id].acres > 0);
+      });
+
+      // Year column totals
+      const yearTotals = [0, 0, 0, 0, 0, 0];
+
+      let html = '';
+      activeCrops.forEach(crop => {
+        const acres = yearData[5].yields[crop.id]?.acres || yearData[0].yields[crop.id]?.acres || 0;
+        html += `<tr class="crop-row">`;
+        html += `<td><span class="crop-swatch" style="background:${crop.color}"></span>${crop.icon} ${crop.name}</td>`;
+        html += `<td>${acres > 0 ? acres.toFixed(2) : '<span class="zero">—</span>'}</td>`;
+        for (let yr = 0; yr <= 5; yr++) {
+          const rev = yearData[yr].revenues[crop.id] || 0;
+          yearTotals[yr] += rev;
+          html += `<td class="${rev === 0 ? 'zero' : ''}">${rev === 0 ? '—' : formatMoney(rev)}</td>`;
+        }
+        html += `</tr>`;
+      });
+
+      // Totals row
+      html += `<tr class="totals-row">`;
+      html += `<td>Total Revenue</td><td></td>`;
+      for (let yr = 0; yr <= 5; yr++) {
+        html += `<td class="grand-total">${formatMoney(yearTotals[yr])}</td>`;
+      }
+      html += `</tr>`;
+
+      tbody.innerHTML = html;
+    }
+
+    render();
+  </script>
+</body>
+</html>

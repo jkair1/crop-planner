@@ -225,7 +225,16 @@
     function loadProducts() {
       try {
         const saved = JSON.parse(localStorage.getItem(PRODUCTS_KEY));
-        if (saved && saved.length > 0) return saved;
+        if (saved && saved.length > 0) {
+          // Merge: add default products for crops not present in saved data
+          const savedCrops = new Set(saved.map(p => p.cropId));
+          DEFAULT_PRODUCTS.forEach(dp => {
+            if (!savedCrops.has(dp.cropId)) {
+              saved.push({...dp});
+            }
+          });
+          return saved;
+        }
       } catch(e) {}
       return DEFAULT_PRODUCTS;
     }

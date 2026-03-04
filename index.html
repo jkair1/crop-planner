@@ -1198,11 +1198,12 @@
       }
     }
 
-    // One-time clear for v9 (grapes 3 mature)
-    if (!localStorage.getItem('cropPlannerV9')) {
+    // One-time clear for v10 (unified version: zones + products)
+    if (!localStorage.getItem('cropPlannerV10')) {
       localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(PRODUCTS_KEY);
       localStorage.removeItem('cropPlannerSuggestedSeen');
-      localStorage.setItem('cropPlannerV9', 'true');
+      localStorage.setItem('cropPlannerV10', 'true');
     }
 
     // Load saved zones on startup
